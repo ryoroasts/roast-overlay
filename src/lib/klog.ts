@@ -20,7 +20,16 @@ export interface KlogEvent {
 
 export interface RoastLog {
   fileName: string;
-  /** 表示名: profile_file_name → fileName の順で採用(空なら short_name は使わない。内蔵プロファイルの short_name は全ログ共通で無意味なため) */
+  /**
+   * 表示名。**ログのファイル名を主、プロファイル名を従**にする。
+   *
+   * 同じプロファイルを Level 違いで焼いて比べるのは中心的な使い方なので
+   * (例: ninjaturtle を Lv1.5 と Lv2.0)、プロファイル名を主にすると
+   * 2本が同名になって区別できなくなる。ログのファイル名は焙煎ごとに必ず違う。
+   *
+   *   log0028 (ninjaturtle)   ← プロファイル名が取れる場合
+   *   log0028                 ← 取れない場合
+   */
   name: string;
   header: Record<string, string>;
   events: KlogEvent[];
@@ -238,8 +247,10 @@ export function parseKlog(text: string, fileName: string): RoastLog {
     rows.push(nums);
   }
 
-  const fileNameField = header['profile_file_name']?.trim();
-  const name = fileNameField ? fileNameField : fileName;
+  // ログのファイル名(拡張子なし)を主にする。プロファイル名は括弧で従える
+  const stem = fileName.replace(/\.klog$/i, '');
+  const profileName = header['profile_file_name']?.trim().replace(/\.kpro$/i, '');
+  const name = profileName ? `${stem} (${profileName})` : stem;
 
   const firstCrack = lastEventValue(events, 'first_crack');
   const roastEnd = lastEventValue(events, 'roast_end') ?? 0;

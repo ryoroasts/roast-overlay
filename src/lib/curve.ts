@@ -73,6 +73,13 @@ export function timeAtValue(poly: Point[], value: number): number | null {
   return null;
 }
 
+/** ポリライン中の最大値(カーブのピーク)。Level の終了温度がここを超えると到達点が描けない。 */
+export function maxValue(poly: Point[]): number {
+  let m = -Infinity;
+  for (const p of poly) if (p.v > m) m = p.v;
+  return m;
+}
+
 /**
  * roast_levels(Level 0..6 の終了温度 7 値)から、
  * 指定 Level(0.1 刻み)の終了温度を線形補間。

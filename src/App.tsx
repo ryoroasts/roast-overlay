@@ -3,7 +3,7 @@ import FileDrop from './components/FileDrop';
 import RoastChart from './components/RoastChart';
 import DiffTable from './components/DiffTable';
 import LevelPanel from './components/LevelPanel';
-import { makeId, type LoadedProfile, type ParsedFile } from './lib/profiles';
+import { defaultLevel, makeId, type LoadedProfile, type ParsedFile } from './lib/profiles';
 import { colorFor } from './lib/palette';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -17,7 +17,9 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 export default function App() {
   const [profiles, setProfiles] = useState<LoadedProfile[]>([]);
-  const [level, setLevel] = useState(3.0);
+  // F3: 個別 Level が基本。「Sync all」ON のときだけ全プロファイルがこの1値を共有する。
+  const [syncAll, setSyncAll] = useState(false);
+  const [syncLevel, setSyncLevel] = useState(3.0);
 
   function addProfiles(files: ParsedFile[]) {
     setProfiles((prev) => {
@@ -30,6 +32,7 @@ export default function App() {
           kind: f.kind,
           profile: f.kind === 'kpro' ? f.kpro : f.klog.design,
           log: f.kind === 'klog' ? f.klog : undefined,
+          level: defaultLevel(f),
         });
       }
       return next;
@@ -43,6 +46,17 @@ export default function App() {
   function remove(id: string) {
     setProfiles((prev) => prev.filter((p) => p.id !== id));
   }
+
+  function setLevel(id: string, value: number) {
+    if (syncAll) {
+      setSyncLevel(value);
+    } else {
+      setProfiles((prev) => prev.map((p) => (p.id === id ? { ...p, level: value } : p)));
+    }
+  }
+
+  const levels: Record<string, number> = {};
+  for (const p of profiles) levels[p.id] = syncAll ? syncLevel : p.level;
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
@@ -101,14 +115,16 @@ export default function App() {
             </Section>
 
             <Section title="Roast カーブ(温度 × 時間)">
-              <RoastChart profiles={profiles} level={level} />
+              <RoastChart profiles={profiles} levels={levels} />
             </Section>
 
             <Section title="終了温度(Level → roast_levels 補間)">
               <LevelPanel
                 profiles={profiles.filter((p) => p.visible)}
-                level={level}
+                levels={levels}
                 onLevelChange={setLevel}
+                syncAll={syncAll}
+                onSyncAllChange={setSyncAll}
               />
             </Section>
 

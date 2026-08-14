@@ -8,6 +8,7 @@ import {
   Tooltip,
   Legend,
   ReferenceDot,
+  ReferenceLine,
   ReferenceArea,
   ResponsiveContainer,
 } from 'recharts';
@@ -17,18 +18,17 @@ import type { LoadedProfile } from '../lib/profiles';
 
 interface Props {
   profiles: LoadedProfile[];
-  /** 終了温度を打つための現在 Level */
-  level: number;
+  /** id → 終了温度を打つための現在 Level */
+  levels: Record<string, number>;
   /** グリッド間隔(秒) */
   step?: number;
 }
 
-// 本家 Kaffelogic Studio に合わせた固定軸
-const T_MAX = 600; // 横軸 10 分
+// 横軸は読み込んだログ/プロファイルの最大長 + 30s に自動調整(§6)。最低 600s(10分)は確保する。
+const T_MIN_MAX = 600;
 const T_STEP = 30; // 30 秒刻み
-const TEMP_MAX = 250; // 縦軸 250℃
+const TEMP_MAX = 250; // 縦軸 250℃(固定)
 const TEMP_STEP = 50; // 50℃ 刻み
-const X_TICKS = Array.from({ length: T_MAX / T_STEP + 1 }, (_, i) => i * T_STEP);
 const Y_TICKS = Array.from({ length: TEMP_MAX / TEMP_STEP + 1 }, (_, i) => i * TEMP_STEP);
 
 const FAN_KEY = (id: string) => `${id}__fan`;
@@ -47,6 +47,12 @@ interface EndDot {
   color: string;
 }
 
+interface EndLine {
+  id: string;
+  temp: number;
+  color: string;
+}
+
 interface ZoneBand {
   id: string;
   label: string;
@@ -55,7 +61,7 @@ interface ZoneBand {
   color: string;
 }
 
-export default function RoastChart({ profiles, level, step = 2 }: Props) {
+export default function RoastChart({ profiles, levels, step = 2 }: Props) {
   const [showFan, setShowFan] = useState(true);
   const [showZones, setShowZones] = useState(true);
 
@@ -63,7 +69,7 @@ export default function RoastChart({ profiles, level, step = 2 }: Props) {
   const nameOf = (id: string) => visible.find((p) => p.id === id)?.profile.name ?? id;
   const baseId = visible[0]?.id;
 
-  const { data, endDots, zoneBands, fanDomain } = useMemo(() => {
+  const { data, endDots, endLines, zoneBands, fanDomain, tMax, xTicks } = useMemo(() => {
     const polys = visible.map((p) => ({
       id: p.id,
       color: p.color,
@@ -72,8 +78,20 @@ export default function RoastChart({ profiles, level, step = 2 }: Props) {
       roastLevels: p.profile.roastLevels,
     }));
 
+    // 横軸の右端: klog は roastEnd、kpro はカーブ自体の長さを使い、+30s して 30s 刻みに切り上げる
+    const rawMax = Math.max(
+      T_MIN_MAX,
+      ...visible.map((p) => {
+        if (p.kind === 'klog' && p.log) return p.log.roastEnd;
+        const poly = polys.find((x) => x.id === p.id)?.poly;
+        return poly && poly.length ? poly[poly.length - 1].t : 0;
+      }),
+    );
+    const tMax = Math.ceil((rawMax + 30) / T_STEP) * T_STEP;
+    const ticks = Array.from({ length: tMax / T_STEP + 1 }, (_, i) => i * T_STEP);
+
     const rows: Record<string, number | null>[] = [];
-    for (let t = 0; t <= T_MAX; t += step) {
+    for (let t = 0; t <= tMax; t += step) {
       const row: Record<string, number | null> = { time: t };
       for (const { id, poly, fanPoly } of polys) {
         row[id] = valueAtTime(poly, t);
@@ -82,11 +100,13 @@ export default function RoastChart({ profiles, level, step = 2 }: Props) {
       rows.push(row);
     }
 
-    // 選択中 Level の終了温度に到達する点
+    // 選択中 Level の終了温度 — 水平線は必ず引く。ドットはカーブ上に載るときだけ(F3)。
     const dots: EndDot[] = [];
+    const lines: EndLine[] = [];
     for (const { id, color, poly, roastLevels } of polys) {
-      const temp = levelToTemp(roastLevels, level);
+      const temp = levelToTemp(roastLevels, levels[id] ?? 0);
       if (temp == null) continue;
+      lines.push({ id, temp, color });
       const t = timeAtValue(poly, temp);
       if (t == null) continue;
       dots.push({ id, t, temp, color });
@@ -121,8 +141,8 @@ export default function RoastChart({ profiles, level, step = 2 }: Props) {
       ? [Math.floor(fanMin / 1000) * 1000, Math.ceil(fanMax / 1000) * 1000]
       : null;
 
-    return { data: rows, endDots: dots, zoneBands: bands, fanDomain: fd };
-  }, [visible, step, level]);
+    return { data: rows, endDots: dots, endLines: lines, zoneBands: bands, fanDomain: fd, tMax, xTicks: ticks };
+  }, [visible, step, levels]);
 
   if (visible.length === 0) {
     return (
@@ -155,8 +175,8 @@ export default function RoastChart({ profiles, level, step = 2 }: Props) {
           <XAxis
             dataKey="time"
             type="number"
-            domain={[0, T_MAX]}
-            ticks={X_TICKS}
+            domain={[0, tMax]}
+            ticks={xTicks}
             tickFormatter={fmtTime}
             stroke="#a1a1aa"
             fontSize={11}
@@ -209,7 +229,7 @@ export default function RoastChart({ profiles, level, step = 2 }: Props) {
           {/* 温度カーブ */}
           {visible.map((p) => (
             <Line
-              key={p.id}
+              key={`line-${p.id}`}
               yAxisId="temp"
               type="monotone"
               dataKey={p.id}
@@ -227,7 +247,7 @@ export default function RoastChart({ profiles, level, step = 2 }: Props) {
             fanDomain &&
             visible.map((p) => (
               <Line
-                key={FAN_KEY(p.id)}
+                key={`fan-${p.id}`}
                 yAxisId="fan"
                 type="monotone"
                 dataKey={FAN_KEY(p.id)}
@@ -243,10 +263,22 @@ export default function RoastChart({ profiles, level, step = 2 }: Props) {
               />
             ))}
 
-          {/* 終了温度の点 */}
+          {/* 終了温度の水平線(F3: カーブ最高点を超えていても必ず引く) */}
+          {endLines.map((l) => (
+            <ReferenceLine
+              key={`refline-${l.id}`}
+              yAxisId="temp"
+              y={l.temp}
+              stroke={l.color}
+              strokeDasharray="4 2"
+              strokeOpacity={0.5}
+            />
+          ))}
+
+          {/* 終了温度の点(カーブ上に載るときだけ) */}
           {endDots.map((d) => (
             <ReferenceDot
-              key={d.id}
+              key={`dot-${d.id}`}
               yAxisId="temp"
               x={d.t}
               y={d.temp}

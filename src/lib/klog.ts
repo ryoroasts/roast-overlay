@@ -52,6 +52,23 @@ export const KLOG_COL = {
   actualFanRPM: 13,
 } as const;
 
+/** rows 上の valueCol 列を、time 列で線形補間して t の値を返す。範囲外は null。 */
+export function rowValueAtTime(rows: number[][], valueCol: number, t: number): number | null {
+  if (rows.length === 0) return null;
+  const timeCol = KLOG_COL.time;
+  if (t < rows[0][timeCol] || t > rows[rows.length - 1][timeCol]) return null;
+  for (let i = 0; i + 1 < rows.length; i++) {
+    const a = rows[i];
+    const b = rows[i + 1];
+    if (t >= a[timeCol] && t <= b[timeCol]) {
+      if (b[timeCol] === a[timeCol]) return a[valueCol];
+      const f = (t - a[timeCol]) / (b[timeCol] - a[timeCol]);
+      return a[valueCol] + f * (b[valueCol] - a[valueCol]);
+    }
+  }
+  return rows[rows.length - 1][valueCol];
+}
+
 function lastEventValue(events: KlogEvent[], key: string): number | null {
   for (let i = events.length - 1; i >= 0; i--) {
     if (events[i].key === key) return events[i].t;

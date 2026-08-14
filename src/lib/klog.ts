@@ -106,14 +106,43 @@ export interface Phases {
   dtr: number | null;
 }
 
-/** Dry/Maillard/Development/DTR(§5)。FC が無ければ Maillard/Development/DTR は null。 */
-export function computePhases(log: RoastLog, dryEndTemp: number): Phases {
+/**
+ * Dry/Maillard/Development/DTR(§5)。fcTime に「発展相の起点」として使う時刻を渡す
+ * (通常は log.firstCrack。F6 の温度基準表示では代わりに温度通過時刻を渡す)。null なら
+ * Maillard/Development/DTR は null。
+ */
+export function computePhasesAt(log: RoastLog, dryEndTemp: number, fcTime: number | null): Phases {
   const dryEnd = firstUpwardCrossing(log.rows, KLOG_COL.meanTemp, dryEndTemp);
-  const fc = log.firstCrack;
-  const maillard = fc != null && dryEnd != null ? fc - dryEnd : null;
-  const development = fc != null ? log.roastEnd - fc : null;
+  const maillard = fcTime != null && dryEnd != null ? fcTime - dryEnd : null;
+  const development = fcTime != null ? log.roastEnd - fcTime : null;
   const dtr = development != null && log.roastEnd > 0 ? development / log.roastEnd : null;
   return { dryEnd, maillard, development, dtr };
+}
+
+/** button(手押しの First crack)基準の Phases。既定の呼び出し方。 */
+export function computePhases(log: RoastLog, dryEndTemp: number): Phases {
+  return computePhasesAt(log, dryEndTemp, log.firstCrack);
+}
+
+// F6: 温度基準アラインメント
+export const DEFAULT_ALIGN_TEMP = 200.0;
+
+/** 基準線の選択肢(既定 mean_temp)。 */
+export type AlignRefCol = 'meanTemp' | 'temp' | 'spotTemp';
+
+/**
+ * Align by Temperature の既定温度(§6 F6):
+ * 最初に読み込んだログの First crack 時点の mean_temp を 0.1℃ に丸めた値。
+ * FC が無ければ expect_fc、それも無ければ 200.0。
+ */
+export function defaultAlignTemp(log: RoastLog): number {
+  if (log.firstCrack != null) {
+    const v = rowValueAtTime(log.rows, KLOG_COL.meanTemp, log.firstCrack);
+    if (v != null) return Math.round(v * 10) / 10;
+  }
+  const expectFc = parseFloat(log.header['expect_fc'] ?? '');
+  if (Number.isFinite(expectFc) && expectFc !== 0) return expectFc;
+  return DEFAULT_ALIGN_TEMP;
 }
 
 // F7: 設計からの偏差(deviation = mean_temp − profile)の判定定数。1箇所にまとめておく。

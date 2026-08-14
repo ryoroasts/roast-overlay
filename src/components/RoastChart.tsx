@@ -15,7 +15,7 @@ import {
 import { expandCurve, valueAtTime, levelToTemp, timeAtValue } from '../lib/curve';
 import { activeZones } from '../lib/kpro';
 import { computePhases, klogValueAt, KLOG_COL } from '../lib/klog';
-import type { LoadedProfile } from '../lib/profiles';
+import type { AlignMode, AlignShift, LoadedProfile } from '../lib/profiles';
 
 interface Props {
   profiles: LoadedProfile[];
@@ -23,6 +23,10 @@ interface Props {
   levels: Record<string, number>;
   /** Dry end 判定の閾値(℃)。F5 */
   dryEndTemp: number;
+  /** id → 時間シフト量(実時間からこれを引くと表示時間になる)。F6 */
+  shifts: Record<string, AlignShift>;
+  /** F6: 現在の Align モード。time 以外では横軸に負の時間を許し ±30s の余白を足す */
+  alignMode: AlignMode;
   /** グリッド間隔(秒) */
   step?: number;
 }
@@ -79,7 +83,7 @@ interface ZoneBand {
   color: string;
 }
 
-export default function RoastChart({ profiles, levels, dryEndTemp, step = 2 }: Props) {
+export default function RoastChart({ profiles, levels, dryEndTemp, shifts, alignMode, step = 2 }: Props) {
   const [rightAxis, setRightAxis] = useState<RightAxis>('fan');
   const [showZones, setShowZones] = useState(true);
   const [showRaw, setShowRaw] = useState(false);
@@ -89,7 +93,7 @@ export default function RoastChart({ profiles, levels, dryEndTemp, step = 2 }: P
   const nameOf = (id: string) => visible.find((p) => p.id === id)?.profile.name ?? id;
   const baseId = visible[0]?.id;
 
-  const { data, endDots, endLines, phaseMarks, zoneBands, fanDomain, rorDomain, tMax, xTicks } = useMemo(() => {
+  const { data, endDots, endLines, phaseMarks, zoneBands, fanDomain, rorDomain, tMax, xMin, xTicks } = useMemo(() => {
     const polys = visible.map((p) => ({
       id: p.id,
       color: p.color,
@@ -97,42 +101,63 @@ export default function RoastChart({ profiles, levels, dryEndTemp, step = 2 }: P
       fanPoly: expandCurve(p.profile.fan),
       roastLevels: p.profile.roastLevels,
     }));
+    const shiftOf = (id: string) => shifts[id]?.shift ?? 0;
 
-    // 横軸の右端: klog は roastEnd、kpro はカーブ自体の長さを使い、+30s して 30s 刻みに切り上げる。
-    // 最低 600s は確保するが、+30s の余白はデータの実長にだけ足す(最低ラインには足さない)。
-    const contentMax = Math.max(
-      0,
-      ...visible.map((p) => {
-        if (p.kind === 'klog' && p.log) return p.log.roastEnd;
-        const poly = polys.find((x) => x.id === p.id)?.poly;
-        return poly && poly.length ? poly[poly.length - 1].t : 0;
-      }),
-    );
-    const tMax = Math.max(T_MIN_MAX, Math.ceil((contentMax + 30) / T_STEP) * T_STEP);
-    const ticks = Array.from({ length: tMax / T_STEP + 1 }, (_, i) => i * T_STEP);
+    // 横軸レンジ: alignMode==='time' なら従来どおり [0, 実データ長+30s]・最低600s。
+    // fc/temp モードでは各プロファイルの表示レンジ(実時間 − シフト)の和集合を取り、
+    // 両端に30sの余白を足す(負の時間も許す。§6)。
+    const ranges = visible.map((p) => {
+      const shift = shiftOf(p.id);
+      let realStart = 0;
+      let realEnd: number;
+      if (p.kind === 'klog' && p.log) {
+        realStart = p.log.rows[0]?.[KLOG_COL.time] ?? 0;
+        realEnd = p.log.roastEnd;
+      } else {
+        const poly = polys.find((x) => x.id === p.id)?.poly ?? [];
+        realStart = poly.length ? poly[0].t : 0;
+        realEnd = poly.length ? poly[poly.length - 1].t : 0;
+      }
+      return { start: realStart - shift, end: realEnd - shift };
+    });
+
+    let xLo: number;
+    let xHi: number;
+    if (alignMode === 'time') {
+      const contentMax = Math.max(0, ...ranges.map((r) => r.end));
+      xLo = 0;
+      xHi = Math.max(T_MIN_MAX, Math.ceil((contentMax + 30) / T_STEP) * T_STEP);
+    } else {
+      const rangeMin = Math.min(0, ...ranges.map((r) => r.start));
+      const rangeMax = Math.max(0, ...ranges.map((r) => r.end));
+      xLo = Math.floor((rangeMin - 30) / T_STEP) * T_STEP;
+      xHi = Math.ceil((rangeMax + 30) / T_STEP) * T_STEP;
+    }
+    const ticks = Array.from({ length: Math.round((xHi - xLo) / T_STEP) + 1 }, (_, i) => xLo + i * T_STEP);
 
     const rows: Record<string, number | null>[] = [];
-    for (let t = 0; t <= tMax; t += step) {
+    for (let t = xLo; t <= xHi; t += step) {
       const row: Record<string, number | null> = { time: t };
       for (const p of visible) {
         const { id, poly, fanPoly } = polys.find((x) => x.id === p.id)!;
-        row[FAN_KEY(id)] = valueAtTime(fanPoly, t);
+        const realT = t + shiftOf(id); // 設計カーブも同じシフト量で一緒に動かす(F6)
+        row[FAN_KEY(id)] = valueAtTime(fanPoly, realT);
         if (p.kind === 'klog' && p.log) {
           // 実測(主線)= mean_temp、設計(破線)= =profile 列。ともに roastEnd で打ち切る(F2)。
-          row[id] = klogValueAt(p.log, KLOG_COL.meanTemp, t);
-          row[DESIGN_KEY(id)] = klogValueAt(p.log, KLOG_COL.profile, t);
+          row[id] = klogValueAt(p.log, KLOG_COL.meanTemp, realT);
+          row[DESIGN_KEY(id)] = klogValueAt(p.log, KLOG_COL.profile, realT);
           if (showRaw) {
-            row[SPOT_KEY(id)] = klogValueAt(p.log, KLOG_COL.spotTemp, t);
-            row[TEMP_KEY(id)] = klogValueAt(p.log, KLOG_COL.temp, t);
+            row[SPOT_KEY(id)] = klogValueAt(p.log, KLOG_COL.spotTemp, realT);
+            row[TEMP_KEY(id)] = klogValueAt(p.log, KLOG_COL.temp, realT);
           }
           if (rightAxis === 'ror') {
             // RoR は actual_ROR 列をそのまま使う。自前で微分しない(F4)。
-            row[ROR_KEY(id)] = klogValueAt(p.log, KLOG_COL.actualROR, t);
-            if (showDesignROR) row[ROR_DESIGN_KEY(id)] = klogValueAt(p.log, KLOG_COL.profileROR, t);
+            row[ROR_KEY(id)] = klogValueAt(p.log, KLOG_COL.actualROR, realT);
+            if (showDesignROR) row[ROR_DESIGN_KEY(id)] = klogValueAt(p.log, KLOG_COL.profileROR, realT);
           }
         } else {
           // .kpro 単体はベジェ再構成の1本(実線)
-          row[id] = valueAtTime(poly, t);
+          row[id] = valueAtTime(poly, realT);
         }
       }
       rows.push(row);
@@ -147,32 +172,36 @@ export default function RoastChart({ profiles, levels, dryEndTemp, step = 2 }: P
       lines.push({ id, temp, color });
       const t = timeAtValue(poly, temp);
       if (t == null) continue;
-      dots.push({ id, t, temp, color });
+      dots.push({ id, t: t - shiftOf(id), temp, color });
     }
 
     // Dry end / First crack / Roast end の縦線(.klog のみ、F5)
     const marks: PhaseMark[] = [];
     for (const p of visible) {
       if (p.kind !== 'klog' || !p.log) continue;
+      const shift = shiftOf(p.id);
       const phases = computePhases(p.log, dryEndTemp);
-      if (phases.dryEnd != null) marks.push({ id: `${p.id}_dry`, label: 'Dry', t: phases.dryEnd, color: p.color });
-      if (p.log.firstCrack != null) {
-        marks.push({ id: `${p.id}_fc`, label: 'FC', t: p.log.firstCrack, color: p.color });
+      if (phases.dryEnd != null) {
+        marks.push({ id: `${p.id}_dry`, label: 'Dry', t: phases.dryEnd - shift, color: p.color });
       }
-      marks.push({ id: `${p.id}_end`, label: 'End', t: p.log.roastEnd, color: p.color });
+      if (p.log.firstCrack != null) {
+        marks.push({ id: `${p.id}_fc`, label: 'FC', t: p.log.firstCrack - shift, color: p.color });
+      }
+      marks.push({ id: `${p.id}_end`, label: 'End', t: p.log.roastEnd - shift, color: p.color });
     }
 
-    // 有効ゾーンの帯
+    // 有効ゾーンの帯(設計カーブ上の時間なので同じシフト量で動かす)
     const bands: ZoneBand[] = [];
     for (const p of visible) {
+      const shift = shiftOf(p.id);
       for (const z of activeZones(p.profile.raw)) {
         const parts = [z.label];
         if (z.boost != null && z.boost !== 0) parts.push(`+${z.boost}`);
         bands.push({
           id: `${p.id}_${z.key}`,
           label: parts.join(' '),
-          start: z.start,
-          end: z.end,
+          start: z.start - shift,
+          end: z.end - shift,
           color: p.color,
         });
       }
@@ -225,10 +254,11 @@ export default function RoastChart({ profiles, levels, dryEndTemp, step = 2 }: P
       zoneBands: bands,
       fanDomain: fd,
       rorDomain: rd,
-      tMax,
+      tMax: xHi,
+      xMin: xLo,
       xTicks: ticks,
     };
-  }, [visible, step, levels, showRaw, dryEndTemp, rightAxis, showDesignROR]);
+  }, [visible, step, levels, showRaw, dryEndTemp, rightAxis, showDesignROR, shifts, alignMode]);
 
   if (visible.length === 0) {
     return (
@@ -292,7 +322,7 @@ export default function RoastChart({ profiles, levels, dryEndTemp, step = 2 }: P
           <XAxis
             dataKey="time"
             type="number"
-            domain={[0, tMax]}
+            domain={[xMin, tMax]}
             ticks={xTicks}
             tickFormatter={fmtTime}
             stroke="#a1a1aa"

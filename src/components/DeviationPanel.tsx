@@ -12,11 +12,14 @@ import {
 } from 'recharts';
 import { expandCurve } from '../lib/curve';
 import { computeDeviationSummary, klogValueAt, KLOG_COL, DEVIATION_BAND } from '../lib/klog';
-import type { LoadedProfile } from '../lib/profiles';
+import type { AlignMode, AlignShift, LoadedProfile } from '../lib/profiles';
 
 interface Props {
   /** 表示中の全プロファイル(.kpro も含む。x 軸を Roast カーブと揃えるため) */
   profiles: LoadedProfile[];
+  /** id → 時間シフト量。Roast カーブと同じものを渡す(F6、x 軸共有) */
+  shifts: Record<string, AlignShift>;
+  alignMode: AlignMode;
   step?: number;
 }
 
@@ -25,50 +28,77 @@ const T_STEP = 30;
 
 /** mm:ss 表示 */
 function fmtTime(sec: number): string {
-  const m = Math.floor(sec / 60);
-  const s = Math.round(sec % 60);
-  return `${m}:${s.toString().padStart(2, '0')}`;
+  const sign = sec < 0 ? '-' : '';
+  const abs = Math.abs(sec);
+  const m = Math.floor(abs / 60);
+  const s = Math.round(abs % 60);
+  return `${sign}${m}:${s.toString().padStart(2, '0')}`;
 }
 
-function deviationAt(p: LoadedProfile, t: number): number | null {
+function deviationAt(p: LoadedProfile, realT: number): number | null {
   if (p.kind !== 'klog' || !p.log) return null;
-  const mean = klogValueAt(p.log, KLOG_COL.meanTemp, t);
-  const profile = klogValueAt(p.log, KLOG_COL.profile, t);
+  const mean = klogValueAt(p.log, KLOG_COL.meanTemp, realT);
+  const profile = klogValueAt(p.log, KLOG_COL.profile, realT);
   return mean != null && profile != null ? mean - profile : null;
 }
 
-export default function DeviationPanel({ profiles, step = 2 }: Props) {
+export default function DeviationPanel({ profiles, shifts, alignMode, step = 2 }: Props) {
   const klogs = profiles.filter((p) => p.kind === 'klog' && p.log);
 
-  const { data, tMax, xTicks, summaries } = useMemo(() => {
-    // Roast カーブと同じ横軸レンジ(.kpro の長さも含めて揃える、§6)
-    const contentMax = Math.max(
-      0,
-      ...profiles.map((p) => {
-        if (p.kind === 'klog' && p.log) return p.log.roastEnd;
+  const { data, tMax, xMin, xTicks, summaries } = useMemo(() => {
+    const shiftOf = (id: string) => shifts[id]?.shift ?? 0;
+
+    // Roast カーブと同じ横軸レンジ計算(.kpro の長さも含めて揃える、§6)
+    const ranges = profiles.map((p) => {
+      const shift = shiftOf(p.id);
+      let realStart = 0;
+      let realEnd: number;
+      if (p.kind === 'klog' && p.log) {
+        realStart = p.log.rows[0]?.[KLOG_COL.time] ?? 0;
+        realEnd = p.log.roastEnd;
+      } else {
         const poly = expandCurve(p.profile.roast);
-        return poly.length ? poly[poly.length - 1].t : 0;
-      }),
-    );
-    const tMax = Math.max(T_MIN_MAX, Math.ceil((contentMax + 30) / T_STEP) * T_STEP);
-    const ticks = Array.from({ length: tMax / T_STEP + 1 }, (_, i) => i * T_STEP);
+        realStart = poly.length ? poly[0].t : 0;
+        realEnd = poly.length ? poly[poly.length - 1].t : 0;
+      }
+      return { start: realStart - shift, end: realEnd - shift };
+    });
+
+    let xLo: number;
+    let xHi: number;
+    if (alignMode === 'time') {
+      const contentMax = Math.max(0, ...ranges.map((r) => r.end));
+      xLo = 0;
+      xHi = Math.max(T_MIN_MAX, Math.ceil((contentMax + 30) / T_STEP) * T_STEP);
+    } else {
+      const rangeMin = Math.min(0, ...ranges.map((r) => r.start));
+      const rangeMax = Math.max(0, ...ranges.map((r) => r.end));
+      xLo = Math.floor((rangeMin - 30) / T_STEP) * T_STEP;
+      xHi = Math.ceil((rangeMax + 30) / T_STEP) * T_STEP;
+    }
+    const ticks = Array.from({ length: Math.round((xHi - xLo) / T_STEP) + 1 }, (_, i) => xLo + i * T_STEP);
 
     const rows: Record<string, number | null>[] = [];
-    for (let t = 0; t <= tMax; t += step) {
+    for (let t = xLo; t <= xHi; t += step) {
       const row: Record<string, number | null> = { time: t };
-      for (const p of klogs) row[p.id] = deviationAt(p, t);
+      for (const p of klogs) row[p.id] = deviationAt(p, t + shiftOf(p.id));
       rows.push(row);
     }
 
-    const sums = klogs.map((p) => ({
-      id: p.id,
-      color: p.color,
-      name: p.profile.name,
-      summary: computeDeviationSummary(p.log!),
-    }));
+    const sums = klogs.map((p) => {
+      const shift = shiftOf(p.id);
+      const summary = computeDeviationSummary(p.log!);
+      return {
+        id: p.id,
+        color: p.color,
+        name: p.profile.name,
+        summary,
+        shift,
+      };
+    });
 
-    return { data: rows, tMax, xTicks: ticks, summaries: sums };
-  }, [profiles, klogs, step]);
+    return { data: rows, tMax: xHi, xMin: xLo, xTicks: ticks, summaries: sums };
+  }, [profiles, klogs, step, shifts, alignMode]);
 
   // .kpro 単体では実測が無いため偏差パネルは出さない(AC-F7-3)
   if (klogs.length === 0) return null;
@@ -81,7 +111,7 @@ export default function DeviationPanel({ profiles, step = 2 }: Props) {
           <XAxis
             dataKey="time"
             type="number"
-            domain={[0, tMax]}
+            domain={[xMin, tMax]}
             ticks={xTicks}
             tickFormatter={fmtTime}
             stroke="#a1a1aa"
@@ -145,7 +175,7 @@ export default function DeviationPanel({ profiles, step = 2 }: Props) {
             </tr>
           </thead>
           <tbody>
-            {summaries.map(({ id, color, name, summary }) => (
+            {summaries.map(({ id, color, name, summary, shift }) => (
               <tr key={id} className="border-b border-zinc-800/60">
                 <td className="px-2 py-1.5">
                   <span
@@ -156,16 +186,16 @@ export default function DeviationPanel({ profiles, step = 2 }: Props) {
                 </td>
                 <td className="px-2 py-1.5 text-right tabular-nums">
                   {summary.maxAbove
-                    ? `+${summary.maxAbove.value.toFixed(2)}°C @ ${fmtTime(summary.maxAbove.t)}`
+                    ? `+${summary.maxAbove.value.toFixed(2)}°C @ ${fmtTime(summary.maxAbove.t - shift)}`
                     : '—'}
                 </td>
                 <td className="px-2 py-1.5 text-right tabular-nums">
                   {summary.maxBelow
-                    ? `${summary.maxBelow.value.toFixed(2)}°C @ ${fmtTime(summary.maxBelow.t)}`
+                    ? `${summary.maxBelow.value.toFixed(2)}°C @ ${fmtTime(summary.maxBelow.t - shift)}`
                     : '—'}
                 </td>
                 <td className="px-2 py-1.5 text-right tabular-nums">
-                  {summary.converged != null ? fmtTime(summary.converged) : 'did not converge'}
+                  {summary.converged != null ? fmtTime(summary.converged - shift) : 'did not converge'}
                 </td>
                 <td className="px-2 py-1.5 text-right tabular-nums">
                   {summary.atEnd != null

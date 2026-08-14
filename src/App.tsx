@@ -5,8 +5,16 @@ import DiffTable from './components/DiffTable';
 import LevelPanel from './components/LevelPanel';
 import PhasesPanel from './components/PhasesPanel';
 import DeviationPanel from './components/DeviationPanel';
-import { DEFAULT_DRY_END_TEMP, defaultDryEndTemp } from './lib/klog';
-import { defaultLevel, makeId, type LoadedProfile, type ParsedFile } from './lib/profiles';
+import AlignPanel from './components/AlignPanel';
+import { DEFAULT_DRY_END_TEMP, defaultDryEndTemp, defaultAlignTemp, type AlignRefCol } from './lib/klog';
+import {
+  computeAlignShift,
+  defaultLevel,
+  makeId,
+  type AlignMode,
+  type LoadedProfile,
+  type ParsedFile,
+} from './lib/profiles';
 import { colorFor } from './lib/palette';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -25,12 +33,19 @@ export default function App() {
   const [syncLevel, setSyncLevel] = useState(3.0);
   // F5: Dry end 判定温度。最初に読み込んだ .klog の expect_colrchange(非0なら)を既定値にする。
   const [dryEndTemp, setDryEndTemp] = useState(DEFAULT_DRY_END_TEMP);
+  // F6: 温度基準アラインメント。
+  const [alignMode, setAlignMode] = useState<AlignMode>('time');
+  const [alignTemp, setAlignTemp] = useState(200.0);
+  const [alignRefCol, setAlignRefCol] = useState<AlignRefCol>('meanTemp');
 
   function addProfiles(files: ParsedFile[]) {
     const hadKlog = profiles.some((p) => p.kind === 'klog');
     if (!hadKlog) {
       const firstKlog = files.find((f) => f.kind === 'klog');
-      if (firstKlog && firstKlog.kind === 'klog') setDryEndTemp(defaultDryEndTemp(firstKlog.klog));
+      if (firstKlog && firstKlog.kind === 'klog') {
+        setDryEndTemp(defaultDryEndTemp(firstKlog.klog));
+        setAlignTemp(defaultAlignTemp(firstKlog.klog));
+      }
     }
     setProfiles((prev) => {
       const next = [...prev];
@@ -67,6 +82,9 @@ export default function App() {
 
   const levels: Record<string, number> = {};
   for (const p of profiles) levels[p.id] = syncAll ? syncLevel : p.level;
+
+  const shifts: Record<string, ReturnType<typeof computeAlignShift>> = {};
+  for (const p of profiles) shifts[p.id] = computeAlignShift(p, alignMode, alignTemp, alignRefCol);
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
@@ -111,6 +129,18 @@ export default function App() {
                           ⚠
                         </span>
                       )}
+                      {alignMode !== 'time' && shifts[p.id] && !shifts[p.id].reached && (
+                        <span
+                          className="text-xs text-amber-400"
+                          title={
+                            alignMode === 'temp'
+                              ? `did not reach ${alignTemp}°C`
+                              : 'no first crack recorded'
+                          }
+                        >
+                          {alignMode === 'temp' ? `did not reach ${alignTemp}°C` : 'no FC'}
+                        </span>
+                      )}
                     </button>
                     <button
                       onClick={() => remove(p.id)}
@@ -124,13 +154,36 @@ export default function App() {
               </ul>
             </Section>
 
+            {profiles.some((p) => p.kind === 'klog') && (
+              <Section title="Align by">
+                <AlignPanel
+                  alignMode={alignMode}
+                  onAlignModeChange={setAlignMode}
+                  alignTemp={alignTemp}
+                  onAlignTempChange={setAlignTemp}
+                  alignRefCol={alignRefCol}
+                  onAlignRefColChange={setAlignRefCol}
+                />
+              </Section>
+            )}
+
             <Section title="Roast カーブ(温度 × 時間)">
-              <RoastChart profiles={profiles} levels={levels} dryEndTemp={dryEndTemp} />
+              <RoastChart
+                profiles={profiles}
+                levels={levels}
+                dryEndTemp={dryEndTemp}
+                shifts={shifts}
+                alignMode={alignMode}
+              />
             </Section>
 
             {profiles.some((p) => p.kind === 'klog') && (
               <Section title="Deviation(実測 − 設計)">
-                <DeviationPanel profiles={profiles.filter((p) => p.visible)} />
+                <DeviationPanel
+                  profiles={profiles.filter((p) => p.visible)}
+                  shifts={shifts}
+                  alignMode={alignMode}
+                />
               </Section>
             )}
 
@@ -150,6 +203,9 @@ export default function App() {
                   profiles={profiles.filter((p) => p.visible)}
                   dryEndTemp={dryEndTemp}
                   onDryEndTempChange={setDryEndTemp}
+                  alignMode={alignMode}
+                  alignTemp={alignTemp}
+                  shifts={shifts}
                 />
               </Section>
             )}

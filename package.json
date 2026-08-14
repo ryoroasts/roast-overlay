@@ -1,9 +1,9 @@
 {
   "name": "roast-overlay",
   "version": "0.1.0",
-  "private": true,
+  "private": false,
   "type": "module",
-  "description": "Overlay — Kaffelogic .kpro / .klog を重ね描きして設計と実測を比べるツール(ブラウザ内処理・送信なし)",
+  "description": "Overlay — compare Kaffelogic roast profiles (.kpro) against actual roast logs (.klog) in your browser. No account, no upload.",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

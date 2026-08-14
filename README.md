@@ -1,53 +1,115 @@
-# Overlay(旧 kpro-diff)
+# Overlay
 
-> 🚧 **2026-08-14 改称・公開準備中。** `.klog`(実測ログ)対応を含む現行の仕様は
-> [`docs/SPEC.md`](docs/SPEC.md) が正。この README は Phase 1-2 時点の記述で、
-> 英語版への書き換えは公開整備(F10)で行う。
-> リポジトリ名 `roast-overlay` / 公開予定ドメイン `overlay.coffee`。
+**See your roast against its design.**
 
-Kaffelogic の `.kpro` プロファイルを**重ね描き比較**する Web ツール。
-Kaffelogic Studio 標準の比較が使いにくい(比較先の Zone が見えない・取り回しが悪い)問題を、
-同一豆でカーブを 1 変数ずつ変える検証運用(V2 / V2a / V2b / V2c 系列)向けに解消するのが目的。
+Overlay is a browser tool for Kaffelogic roasters. Drop in a `.klog` (a
+recorded roast) and it overlays the actual temperature curve on top of the
+design curve the machine was following — same graph, same color, solid vs.
+dashed. Drop in several roasts and it aligns them by a chosen bean
+temperature instead of the first-crack button press, so you can compare
+roasts fairly even when the button was pressed a few seconds early or late.
 
-純クライアント静的アプリ。`.kpro` はブラウザ内でのみ処理され、サーバ送信は一切ない。
-private 利用(`npm run dev`)から将来の WEB 公開(静的ホスティング)まで同一コードで動く。
+**Your files never leave your browser. No account, no upload.** Overlay is a
+static site — parsing, charting, and comparison all happen client-side. There
+is no server component and nothing is ever sent anywhere.
 
-## 使い方
+## Why
+
+Kaffelogic's own community forum's most common thread is some version of
+"my roast overshoots the design curve in the first minute or two — is that
+normal, what do I do about it?" Loading a real example roast (`1500-2000m
+Rest`) into Overlay shows exactly that pattern:
+
+- Actual temperature peaks **+12.06°C above the design curve at 1:12** into
+  the roast.
+- It settles back within a ±3°C band by **2:51**.
+- By roast end the deviation is back down to **-0.09°C**.
+
+Overlay's deviation panel computes those three numbers (max overshoot, when
+it converges, where it lands) for every roast you load, so "is this
+overshoot normal" becomes something you can read off a chart instead of
+guessing.
+
+The second, more specific problem: **first crack is a button a human
+presses**, and how fast the beans pop changes exactly when that button gets
+pressed. Two roasts of the same profile, pressed a few seconds apart, get
+their Maillard/Development split computed differently even though the beans
+did almost the same thing. Overlay's *Align by temperature* mode aligns
+roasts by the moment each one crosses a chosen bean temperature instead of
+the button press, and shows both the button-based and temperature-based
+Development/DTR numbers side by side so you can see how much the button
+timing actually mattered.
+
+## What it does
+
+- **Design vs. actual overlay** — load a `.klog` and see the measured curve
+  (solid) and the design curve the machine was following (dashed), same
+  color, one graph. `.kpro` files (design only, no roast data) render as a
+  single reconstructed curve.
+- **Multiple roasts, one graph** — load several `.klog`/`.kpro` files and
+  compare them directly, each in its own color.
+- **Align by temperature** — the differentiator. Shift each roast's time
+  axis so a chosen reference temperature (default: `mean_temp`) lands at
+  x = 0, instead of roast start or the first-crack button press. The design
+  curve shifts with it, so the actual-vs-design relationship stays intact.
+- **Deviation tracking** — a small panel under the main chart plots
+  `actual − design` over time, with a ±3°C band and a summary (max
+  overshoot/undershoot and when, when it converges, deviation at roast end).
+- **Phases** — Dry end / Maillard / Development / DTR, computed both the
+  button way and the temperature way when temperature alignment is active.
+- **Level, per roast** — each loaded file gets its own Level slider
+  (0–6, roast_levels-interpolated end temperature), so profiles roasted at
+  different levels don't get flattened into one shared value. A "Sync all"
+  toggle restores the old shared-Level behavior when you want it.
+- **RoR** — actual rate-of-rise, read straight from the log's own
+  `actual_ROR` column (not re-derived), with an optional design-RoR overlay.
+- **Scalar diff table** — preheat/PID/zone settings side by side, with
+  differences from the first-loaded file highlighted.
+
+## Usage
 
 ```bash
 npm install
 npm run dev      # http://localhost:5173
-npm run build    # dist/ に静的出力(GitHub Pages / Cloudflare Pages 等にそのまま置ける)
+npm run build    # static output in dist/ — deploy anywhere (GitHub Pages, Cloudflare Pages, S3, …)
 ```
 
-ブラウザで `.kpro` を複数ドラッグ&ドロップすると、
+Drag `.kpro` and/or `.klog` files onto the drop zone (or click to pick
+files). Everything else — parsing, charting, alignment, comparison — happens
+in the browser tab.
 
-- **Roast カーブ**の重ね描き(温度 × 時間)
-- **Level → 終了温度**の線形補間(roast_levels テーブル)
-- **スカラー差分表**(preheat / PID / zone、基準列との差分をハイライト)
+## A note on privacy
 
-が表示される。
+A `.klog` file includes information about the specific roaster that produced
+it: a machine serial number (`model:KN1007B/...`), mains voltage,
+calibration data, and motor hours. Overlay reads that data only to render
+the roast (nothing about it is displayed beyond what feeds the charts) and,
+as above, never transmits any file anywhere — so loading your own logs is
+safe. If a future version of Overlay ever added a "share this roast" link or
+export, that machine-identifying data would need to be stripped first; as of
+this version, no such feature exists.
 
-## .kpro データ構造(リバースエンジニアリング済み)
+## A note on accuracy: `.kpro` vs. `.klog`
 
-- プレーン ASCII / LF / BOM なし / チェックサムなし。1 行 = `key:value`。
-- `roast_profile` / `fan_profile` は `(時間秒, 値)` のペア列。先頭・末尾に `time=0` のパディング。
-- **パディングを除いた実データは 3 ペアで 1 グループ**。各グループは
-  `[アンカー, 制御点, 制御点]` で、アンカー(曲線が通る点)はグループの **1 番目**。
-  残り 2 つは、そのアンカーから次のアンカーへ向かう区間の 2 制御点(格納順は不定なので時間でソート)。
-- 隣接アンカー `Aᵢ → Aᵢ₊₁` を、`start=Aᵢ, cp1/cp2=グループ i の制御点(時間順), end=Aᵢ₊₁` の
-  **3 次ベジェ**で描くと Kaffelogic Studio と同じ曲線になる
-  (Studio のファン値 ― v2b で 7:00≒13540 ― と一致することで構造を確定)。
-- `roast_levels`: Level 0〜6 の終了温度 7 値。Level は焙煎度の絶対値ではなく
-  「テーブルから終了温度を選ぶインデックス」。0.1 刻みで線形補間。
-- 時間軸 ×N 変換は「時間座標(偶数 index)だけ ×N、温度(奇数 index)据え置き、
-  zone の time_start/end も ×N」で表現できる。
+When you load a `.klog`, the design line comes straight from the log's own
+`=profile` column — the exact curve the machine itself computed and
+followed, not a reconstruction. It's exact.
 
-実装: パース = [`src/lib/kpro.ts`](src/lib/kpro.ts)、ベジェ展開/補間 = [`src/lib/curve.ts`](src/lib/curve.ts)。
+When you load a bare `.kpro` (a profile with no associated roast), there is
+no such recorded column, so Overlay reconstructs the design curve from the
+profile's stored control points using cubic Béziers. That reconstruction
+matches the machine's own curve closely from about the 60-second mark
+onward (average error ≤0.5°C), but is measurably less accurate in the first
+minute (average error ~2.3°C, because the machine's own ramp-up logic before
+the first anchor point isn't recoverable from the stored data). If you need
+first-minute accuracy, load the `.klog` instead of the bare `.kpro`.
 
-## ロードマップ
+## 日本語をお使いの方へ
 
-- **Phase 1(済)**: 複数 kpro 読込 / roast カーブ重ね描き / スカラー差分表 / Level 終了温度補間
-  - 軸は本家 Studio に合わせ固定(縦 0〜250℃/50℃刻み、横 0〜10:00/30秒刻み)。選択 Level の終了温度をカーブ上に点表示。
-- **Phase 2(済)**: fan_profile 重ね描き(破線・第 2 軸)/ Zone 帯可視化(zone1/2/corner1 の有効区間+boost)/ ホバー差分ツールチップ(基準列との Δ・ファン rpm)
-- **Phase 3**: `.klog` 実測カーブ重ね(設計 vs 実測)/ 時間軸 ×N 変換ヘルパ / 共有エクスポート
+アプリ右上の **EN / 日本語** トグルで UI 全体を日本語に切り替えられます。
+選択は端末に保存され、次回アクセス時も維持されます。仕様の詳細は
+[`docs/SPEC.md`](docs/SPEC.md)(日本語)を参照してください。
+
+## License
+
+[MIT](LICENSE)

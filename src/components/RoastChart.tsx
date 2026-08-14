@@ -14,13 +14,15 @@ import {
 } from 'recharts';
 import { expandCurve, valueAtTime, levelToTemp, timeAtValue } from '../lib/curve';
 import { activeZones } from '../lib/kpro';
-import { KLOG_COL, rowValueAtTime, type RoastLog } from '../lib/klog';
+import { computePhases, KLOG_COL, rowValueAtTime, type RoastLog } from '../lib/klog';
 import type { LoadedProfile } from '../lib/profiles';
 
 interface Props {
   profiles: LoadedProfile[];
   /** id → 終了温度を打つための現在 Level */
   levels: Record<string, number>;
+  /** Dry end 判定の閾値(℃)。F5 */
+  dryEndTemp: number;
   /** グリッド間隔(秒) */
   step?: number;
 }
@@ -64,6 +66,13 @@ interface EndLine {
   color: string;
 }
 
+interface PhaseMark {
+  id: string;
+  label: string;
+  t: number;
+  color: string;
+}
+
 interface ZoneBand {
   id: string;
   label: string;
@@ -72,7 +81,7 @@ interface ZoneBand {
   color: string;
 }
 
-export default function RoastChart({ profiles, levels, step = 2 }: Props) {
+export default function RoastChart({ profiles, levels, dryEndTemp, step = 2 }: Props) {
   const [showFan, setShowFan] = useState(true);
   const [showZones, setShowZones] = useState(true);
   const [showRaw, setShowRaw] = useState(false);
@@ -81,7 +90,7 @@ export default function RoastChart({ profiles, levels, step = 2 }: Props) {
   const nameOf = (id: string) => visible.find((p) => p.id === id)?.profile.name ?? id;
   const baseId = visible[0]?.id;
 
-  const { data, endDots, endLines, zoneBands, fanDomain, tMax, xTicks } = useMemo(() => {
+  const { data, endDots, endLines, phaseMarks, zoneBands, fanDomain, tMax, xTicks } = useMemo(() => {
     const polys = visible.map((p) => ({
       id: p.id,
       color: p.color,
@@ -137,6 +146,18 @@ export default function RoastChart({ profiles, levels, step = 2 }: Props) {
       dots.push({ id, t, temp, color });
     }
 
+    // Dry end / First crack / Roast end の縦線(.klog のみ、F5)
+    const marks: PhaseMark[] = [];
+    for (const p of visible) {
+      if (p.kind !== 'klog' || !p.log) continue;
+      const phases = computePhases(p.log, dryEndTemp);
+      if (phases.dryEnd != null) marks.push({ id: `${p.id}_dry`, label: 'Dry', t: phases.dryEnd, color: p.color });
+      if (p.log.firstCrack != null) {
+        marks.push({ id: `${p.id}_fc`, label: 'FC', t: p.log.firstCrack, color: p.color });
+      }
+      marks.push({ id: `${p.id}_end`, label: 'End', t: p.log.roastEnd, color: p.color });
+    }
+
     // 有効ゾーンの帯
     const bands: ZoneBand[] = [];
     for (const p of visible) {
@@ -166,8 +187,17 @@ export default function RoastChart({ profiles, levels, step = 2 }: Props) {
       ? [Math.floor(fanMin / 1000) * 1000, Math.ceil(fanMax / 1000) * 1000]
       : null;
 
-    return { data: rows, endDots: dots, endLines: lines, zoneBands: bands, fanDomain: fd, tMax, xTicks: ticks };
-  }, [visible, step, levels, showRaw]);
+    return {
+      data: rows,
+      endDots: dots,
+      endLines: lines,
+      phaseMarks: marks,
+      zoneBands: bands,
+      fanDomain: fd,
+      tMax,
+      xTicks: ticks,
+    };
+  }, [visible, step, levels, showRaw, dryEndTemp]);
 
   if (visible.length === 0) {
     return (
@@ -370,6 +400,24 @@ export default function RoastChart({ profiles, levels, step = 2 }: Props) {
               stroke="#18181b"
               strokeWidth={1.5}
               isFront
+            />
+          ))}
+
+          {/* Dry end / First crack / Roast end の縦線(.klog のみ、F5) */}
+          {phaseMarks.map((m) => (
+            <ReferenceLine
+              key={`phase-${m.id}`}
+              yAxisId="temp"
+              x={m.t}
+              stroke={m.color}
+              strokeDasharray={m.label === 'FC' ? '2 2' : '3 3'}
+              strokeOpacity={0.6}
+              label={{
+                value: m.label,
+                position: 'top',
+                fill: m.color,
+                fontSize: 10,
+              }}
             />
           ))}
         </ComposedChart>

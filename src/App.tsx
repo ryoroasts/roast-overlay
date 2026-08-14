@@ -3,6 +3,8 @@ import FileDrop from './components/FileDrop';
 import RoastChart from './components/RoastChart';
 import DiffTable from './components/DiffTable';
 import LevelPanel from './components/LevelPanel';
+import PhasesPanel from './components/PhasesPanel';
+import { DEFAULT_DRY_END_TEMP, defaultDryEndTemp } from './lib/klog';
 import { defaultLevel, makeId, type LoadedProfile, type ParsedFile } from './lib/profiles';
 import { colorFor } from './lib/palette';
 
@@ -20,8 +22,15 @@ export default function App() {
   // F3: 個別 Level が基本。「Sync all」ON のときだけ全プロファイルがこの1値を共有する。
   const [syncAll, setSyncAll] = useState(false);
   const [syncLevel, setSyncLevel] = useState(3.0);
+  // F5: Dry end 判定温度。最初に読み込んだ .klog の expect_colrchange(非0なら)を既定値にする。
+  const [dryEndTemp, setDryEndTemp] = useState(DEFAULT_DRY_END_TEMP);
 
   function addProfiles(files: ParsedFile[]) {
+    const hadKlog = profiles.some((p) => p.kind === 'klog');
+    if (!hadKlog) {
+      const firstKlog = files.find((f) => f.kind === 'klog');
+      if (firstKlog && firstKlog.kind === 'klog') setDryEndTemp(defaultDryEndTemp(firstKlog.klog));
+    }
     setProfiles((prev) => {
       const next = [...prev];
       for (const f of files) {
@@ -115,7 +124,7 @@ export default function App() {
             </Section>
 
             <Section title="Roast カーブ(温度 × 時間)">
-              <RoastChart profiles={profiles} levels={levels} />
+              <RoastChart profiles={profiles} levels={levels} dryEndTemp={dryEndTemp} />
             </Section>
 
             <Section title="終了温度(Level → roast_levels 補間)">
@@ -127,6 +136,16 @@ export default function App() {
                 onSyncAllChange={setSyncAll}
               />
             </Section>
+
+            {profiles.some((p) => p.kind === 'klog') && (
+              <Section title="フェーズ(Dry / Maillard / Development)">
+                <PhasesPanel
+                  profiles={profiles.filter((p) => p.visible)}
+                  dryEndTemp={dryEndTemp}
+                  onDryEndTempChange={setDryEndTemp}
+                />
+              </Section>
+            )}
 
             <Section title="スカラー差分(基準=左端)">
               <DiffTable profiles={profiles.filter((p) => p.visible)} />

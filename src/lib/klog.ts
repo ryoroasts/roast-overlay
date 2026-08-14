@@ -69,6 +69,47 @@ export function rowValueAtTime(rows: number[][], valueCol: number, t: number): n
   return rows[rows.length - 1][valueCol];
 }
 
+/** rows 内で valueCol が threshold を上向きに最初に横切る時刻(線形補間)。無ければ null。 */
+export function firstUpwardCrossing(rows: number[][], valueCol: number, threshold: number): number | null {
+  const timeCol = KLOG_COL.time;
+  for (let i = 0; i + 1 < rows.length; i++) {
+    const a = rows[i];
+    const b = rows[i + 1];
+    if (a[valueCol] < threshold && b[valueCol] >= threshold) {
+      if (b[valueCol] === a[valueCol]) return a[timeCol];
+      const f = (threshold - a[valueCol]) / (b[valueCol] - a[valueCol]);
+      return a[timeCol] + f * (b[timeCol] - a[timeCol]);
+    }
+  }
+  return null;
+}
+
+export const DEFAULT_DRY_END_TEMP = 150.0;
+
+/** Dry end 閾値の既定値。expect_colrchange が非0ならそれを使う(§5 F5)。 */
+export function defaultDryEndTemp(log: RoastLog): number {
+  const v = parseFloat(log.header['expect_colrchange'] ?? '');
+  return Number.isFinite(v) && v !== 0 ? v : DEFAULT_DRY_END_TEMP;
+}
+
+export interface Phases {
+  dryEnd: number | null;
+  maillard: number | null;
+  development: number | null;
+  /** 0〜1 の割合(% 表示は呼び出し側で ×100) */
+  dtr: number | null;
+}
+
+/** Dry/Maillard/Development/DTR(§5)。FC が無ければ Maillard/Development/DTR は null。 */
+export function computePhases(log: RoastLog, dryEndTemp: number): Phases {
+  const dryEnd = firstUpwardCrossing(log.rows, KLOG_COL.meanTemp, dryEndTemp);
+  const fc = log.firstCrack;
+  const maillard = fc != null && dryEnd != null ? fc - dryEnd : null;
+  const development = fc != null ? log.roastEnd - fc : null;
+  const dtr = development != null && log.roastEnd > 0 ? development / log.roastEnd : null;
+  return { dryEnd, maillard, development, dtr };
+}
+
 function lastEventValue(events: KlogEvent[], key: string): number | null {
   for (let i = events.length - 1; i >= 0; i--) {
     if (events[i].key === key) return events[i].t;

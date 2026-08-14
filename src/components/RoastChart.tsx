@@ -14,7 +14,7 @@ import {
 } from 'recharts';
 import { expandCurve, valueAtTime, levelToTemp, timeAtValue } from '../lib/curve';
 import { activeZones } from '../lib/kpro';
-import { computePhases, KLOG_COL, rowValueAtTime, type RoastLog } from '../lib/klog';
+import { computePhases, klogValueAt, KLOG_COL } from '../lib/klog';
 import type { LoadedProfile } from '../lib/profiles';
 
 interface Props {
@@ -39,12 +39,6 @@ const FAN_KEY = (id: string) => `${id}__fan`;
 const DESIGN_KEY = (id: string) => `${id}__design`;
 const SPOT_KEY = (id: string) => `${id}__spot`;
 const TEMP_KEY = (id: string) => `${id}__temp`;
-
-/** .klog の行データ列を t で線形補間。roastEnd を超えたら null(クーリング区間は描かない、§5 F2)。 */
-function klogValueAt(log: RoastLog, col: number, t: number): number | null {
-  if (t > log.roastEnd) return null;
-  return rowValueAtTime(log.rows, col, t);
-}
 
 /** mm:ss 表示 */
 function fmtTime(sec: number): string {

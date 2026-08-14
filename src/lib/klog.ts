@@ -52,6 +52,12 @@ export const KLOG_COL = {
   actualFanRPM: 13,
 } as const;
 
+/** t<=roastEnd に限定した列値。クーリング区間は描かない(§5 F2)。 */
+export function klogValueAt(log: RoastLog, col: number, t: number): number | null {
+  if (t > log.roastEnd) return null;
+  return rowValueAtTime(log.rows, col, t);
+}
+
 /** rows 上の valueCol 列を、time 列で線形補間して t の値を返す。範囲外は null。 */
 export function rowValueAtTime(rows: number[][], valueCol: number, t: number): number | null {
   if (rows.length === 0) return null;
@@ -108,6 +114,60 @@ export function computePhases(log: RoastLog, dryEndTemp: number): Phases {
   const development = fc != null ? log.roastEnd - fc : null;
   const dtr = development != null && log.roastEnd > 0 ? development / log.roastEnd : null;
   return { dryEnd, maillard, development, dtr };
+}
+
+// F7: 設計からの偏差(deviation = mean_temp − profile)の判定定数。1箇所にまとめておく。
+export const DEVIATION_BAND = 3; // ℃
+export const DEVIATION_SUMMARY_START = 30; // s(立ち上がりの下振れを除外)
+
+export interface DeviationSummary {
+  maxAbove: { value: number; t: number } | null;
+  maxBelow: { value: number; t: number } | null;
+  /** それ以降ずっと |deviation| < DEVIATION_BAND を保つ最初の時刻。収束しなければ null */
+  converged: number | null;
+  atEnd: number | null;
+}
+
+/** t<=roastEnd の deviation(t) = mean_temp(t) - profile(t) 点列(0s から)。 */
+export function deviationSeries(log: RoastLog): { t: number; v: number }[] {
+  const out: { t: number; v: number }[] = [];
+  for (const row of log.rows) {
+    const t = row[KLOG_COL.time];
+    if (t > log.roastEnd) continue;
+    out.push({ t, v: row[KLOG_COL.meanTemp] - row[KLOG_COL.profile] });
+  }
+  return out;
+}
+
+/** 表示B(§5 F7)。t < DEVIATION_SUMMARY_START は除外して集計する。 */
+export function computeDeviationSummary(
+  log: RoastLog,
+  band = DEVIATION_BAND,
+  startT = DEVIATION_SUMMARY_START,
+): DeviationSummary {
+  const series = deviationSeries(log).filter((p) => p.t >= startT);
+  if (series.length === 0) return { maxAbove: null, maxBelow: null, converged: null, atEnd: null };
+
+  let maxAbove = series[0];
+  let maxBelow = series[0];
+  let lastViolation = -1;
+  series.forEach((p, i) => {
+    if (p.v > maxAbove.v) maxAbove = p;
+    if (p.v < maxBelow.v) maxBelow = p;
+    if (Math.abs(p.v) >= band) lastViolation = i;
+  });
+  const converged = lastViolation === series.length - 1 ? null : series[lastViolation + 1].t;
+
+  const meanEnd = rowValueAtTime(log.rows, KLOG_COL.meanTemp, log.roastEnd);
+  const profileEnd = rowValueAtTime(log.rows, KLOG_COL.profile, log.roastEnd);
+  const atEnd = meanEnd != null && profileEnd != null ? meanEnd - profileEnd : null;
+
+  return {
+    maxAbove: { value: maxAbove.v, t: maxAbove.t },
+    maxBelow: { value: maxBelow.v, t: maxBelow.t },
+    converged,
+    atEnd,
+  };
 }
 
 function lastEventValue(events: KlogEvent[], key: string): number | null {

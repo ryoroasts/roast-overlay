@@ -4,6 +4,7 @@ import RoastChart from './components/RoastChart';
 import DiffTable from './components/DiffTable';
 import LevelPanel from './components/LevelPanel';
 import PhasesPanel from './components/PhasesPanel';
+import DeviationPanel from './components/DeviationPanel';
 import { DEFAULT_DRY_END_TEMP, defaultDryEndTemp } from './lib/klog';
 import { defaultLevel, makeId, type LoadedProfile, type ParsedFile } from './lib/profiles';
 import { colorFor } from './lib/palette';
@@ -126,6 +127,12 @@ export default function App() {
             <Section title="Roast カーブ(温度 × 時間)">
               <RoastChart profiles={profiles} levels={levels} dryEndTemp={dryEndTemp} />
             </Section>
+
+            {profiles.some((p) => p.kind === 'klog') && (
+              <Section title="Deviation(実測 − 設計)">
+                <DeviationPanel profiles={profiles.filter((p) => p.visible)} />
+              </Section>
+            )}
 
             <Section title="終了温度(Level → roast_levels 補間)">
               <LevelPanel

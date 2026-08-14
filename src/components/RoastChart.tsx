@@ -14,6 +14,7 @@ import {
 } from 'recharts';
 import { expandCurve, valueAtTime, levelToTemp, timeAtValue } from '../lib/curve';
 import { activeZones } from '../lib/kpro';
+import { KLOG_COL, rowValueAtTime, type RoastLog } from '../lib/klog';
 import type { LoadedProfile } from '../lib/profiles';
 
 interface Props {
@@ -32,6 +33,16 @@ const TEMP_STEP = 50; // 50℃ 刻み
 const Y_TICKS = Array.from({ length: TEMP_MAX / TEMP_STEP + 1 }, (_, i) => i * TEMP_STEP);
 
 const FAN_KEY = (id: string) => `${id}__fan`;
+// .klog の設計線(=profile 列)。実測(dataKey=id 自身、F2 では mean_temp)と同色・破線で重ねる。
+const DESIGN_KEY = (id: string) => `${id}__design`;
+const SPOT_KEY = (id: string) => `${id}__spot`;
+const TEMP_KEY = (id: string) => `${id}__temp`;
+
+/** .klog の行データ列を t で線形補間。roastEnd を超えたら null(クーリング区間は描かない、§5 F2)。 */
+function klogValueAt(log: RoastLog, col: number, t: number): number | null {
+  if (t > log.roastEnd) return null;
+  return rowValueAtTime(log.rows, col, t);
+}
 
 /** mm:ss 表示 */
 function fmtTime(sec: number): string {
@@ -64,6 +75,7 @@ interface ZoneBand {
 export default function RoastChart({ profiles, levels, step = 2 }: Props) {
   const [showFan, setShowFan] = useState(true);
   const [showZones, setShowZones] = useState(true);
+  const [showRaw, setShowRaw] = useState(false);
 
   const visible = profiles.filter((p) => p.visible && p.profile.roast.anchors.length > 0);
   const nameOf = (id: string) => visible.find((p) => p.id === id)?.profile.name ?? id;
@@ -78,24 +90,37 @@ export default function RoastChart({ profiles, levels, step = 2 }: Props) {
       roastLevels: p.profile.roastLevels,
     }));
 
-    // 横軸の右端: klog は roastEnd、kpro はカーブ自体の長さを使い、+30s して 30s 刻みに切り上げる
-    const rawMax = Math.max(
-      T_MIN_MAX,
+    // 横軸の右端: klog は roastEnd、kpro はカーブ自体の長さを使い、+30s して 30s 刻みに切り上げる。
+    // 最低 600s は確保するが、+30s の余白はデータの実長にだけ足す(最低ラインには足さない)。
+    const contentMax = Math.max(
+      0,
       ...visible.map((p) => {
         if (p.kind === 'klog' && p.log) return p.log.roastEnd;
         const poly = polys.find((x) => x.id === p.id)?.poly;
         return poly && poly.length ? poly[poly.length - 1].t : 0;
       }),
     );
-    const tMax = Math.ceil((rawMax + 30) / T_STEP) * T_STEP;
+    const tMax = Math.max(T_MIN_MAX, Math.ceil((contentMax + 30) / T_STEP) * T_STEP);
     const ticks = Array.from({ length: tMax / T_STEP + 1 }, (_, i) => i * T_STEP);
 
     const rows: Record<string, number | null>[] = [];
     for (let t = 0; t <= tMax; t += step) {
       const row: Record<string, number | null> = { time: t };
-      for (const { id, poly, fanPoly } of polys) {
-        row[id] = valueAtTime(poly, t);
+      for (const p of visible) {
+        const { id, poly, fanPoly } = polys.find((x) => x.id === p.id)!;
         row[FAN_KEY(id)] = valueAtTime(fanPoly, t);
+        if (p.kind === 'klog' && p.log) {
+          // 実測(主線)= mean_temp、設計(破線)= =profile 列。ともに roastEnd で打ち切る(F2)。
+          row[id] = klogValueAt(p.log, KLOG_COL.meanTemp, t);
+          row[DESIGN_KEY(id)] = klogValueAt(p.log, KLOG_COL.profile, t);
+          if (showRaw) {
+            row[SPOT_KEY(id)] = klogValueAt(p.log, KLOG_COL.spotTemp, t);
+            row[TEMP_KEY(id)] = klogValueAt(p.log, KLOG_COL.temp, t);
+          }
+        } else {
+          // .kpro 単体はベジェ再構成の1本(実線)
+          row[id] = valueAtTime(poly, t);
+        }
       }
       rows.push(row);
     }
@@ -142,7 +167,7 @@ export default function RoastChart({ profiles, levels, step = 2 }: Props) {
       : null;
 
     return { data: rows, endDots: dots, endLines: lines, zoneBands: bands, fanDomain: fd, tMax, xTicks: ticks };
-  }, [visible, step, levels]);
+  }, [visible, step, levels, showRaw]);
 
   if (visible.length === 0) {
     return (
@@ -166,6 +191,10 @@ export default function RoastChart({ profiles, levels, step = 2 }: Props) {
             onChange={(e) => setShowZones(e.target.checked)}
           />
           Zone 帯
+        </label>
+        <label className="flex items-center gap-1.5">
+          <input type="checkbox" checked={showRaw} onChange={(e) => setShowRaw(e.target.checked)} />
+          生データ(spot_temp / temp、.klog のみ)
         </label>
       </div>
 
@@ -223,10 +252,10 @@ export default function RoastChart({ profiles, levels, step = 2 }: Props) {
               />
             ))}
 
-          <Tooltip content={<DiffTooltip nameOf={nameOf} baseId={baseId} showFan={showFan} />} />
+          <Tooltip content={<DiffTooltip visible={visible} nameOf={nameOf} baseId={baseId} showFan={showFan} />} />
           <Legend formatter={(id) => nameOf(String(id))} />
 
-          {/* 温度カーブ */}
+          {/* 温度カーブ(主線: .klog は mean_temp 実測、.kpro はベジェ再構成) */}
           {visible.map((p) => (
             <Line
               key={`line-${p.id}`}
@@ -241,6 +270,60 @@ export default function RoastChart({ profiles, levels, step = 2 }: Props) {
               isAnimationActive={false}
             />
           ))}
+
+          {/* 設計線(.klog のみ・=profile 列・同色破線 opacity 0.5、F2) */}
+          {visible
+            .filter((p) => p.kind === 'klog')
+            .map((p) => (
+              <Line
+                key={`design-${p.id}`}
+                yAxisId="temp"
+                type="monotone"
+                dataKey={DESIGN_KEY(p.id)}
+                stroke={p.color}
+                strokeWidth={2}
+                strokeDasharray="6 4"
+                strokeOpacity={0.5}
+                dot={false}
+                connectNulls={false}
+                isAnimationActive={false}
+                legendType="none"
+              />
+            ))}
+
+          {/* 生データ(spot_temp / temp、.klog のみ・デフォルト非表示) */}
+          {showRaw &&
+            visible
+              .filter((p) => p.kind === 'klog')
+              .flatMap((p) => [
+                <Line
+                  key={`spot-${p.id}`}
+                  yAxisId="temp"
+                  type="monotone"
+                  dataKey={SPOT_KEY(p.id)}
+                  stroke={p.color}
+                  strokeWidth={1}
+                  strokeOpacity={0.35}
+                  dot={false}
+                  connectNulls={false}
+                  isAnimationActive={false}
+                  legendType="none"
+                />,
+                <Line
+                  key={`temp-${p.id}`}
+                  yAxisId="temp"
+                  type="monotone"
+                  dataKey={TEMP_KEY(p.id)}
+                  stroke={p.color}
+                  strokeWidth={1}
+                  strokeDasharray="2 2"
+                  strokeOpacity={0.5}
+                  dot={false}
+                  connectNulls={false}
+                  isAnimationActive={false}
+                  legendType="none"
+                />,
+              ])}
 
           {/* ファンカーブ(破線・右軸) */}
           {showFan &&
@@ -302,6 +385,7 @@ interface TooltipEntry {
   color: string;
 }
 function DiffTooltip(props: {
+  visible: LoadedProfile[];
   nameOf: (id: string) => string;
   baseId?: string;
   showFan: boolean;
@@ -309,36 +393,37 @@ function DiffTooltip(props: {
   payload?: TooltipEntry[];
   label?: number;
 }) {
-  const { nameOf, baseId, showFan, active, payload, label } = props;
+  const { visible, nameOf, baseId, showFan, active, payload, label } = props;
   if (!active || !payload || payload.length === 0) return null;
 
-  // 温度系列(dataKey が __fan で終わらない)
-  const temps = payload.filter((e) => !e.dataKey.endsWith('__fan'));
-  const fans = payload.filter((e) => e.dataKey.endsWith('__fan'));
-  const baseTemp = temps.find((e) => e.dataKey === baseId)?.value ?? null;
+  const byKey = new Map(payload.map((e) => [e.dataKey, e.value]));
+  const baseTemp = baseId != null ? (byKey.get(baseId) ?? null) : null;
 
   return (
     <div className="rounded-lg border border-zinc-700 bg-zinc-900/95 px-3 py-2 text-sm shadow-lg">
       <p className="mb-1 font-medium text-zinc-300">時間 {fmtTime(Number(label))}</p>
       <table className="tabular-nums">
         <tbody>
-          {temps.map((e) => {
-            const fan = showFan ? fans.find((f) => f.dataKey === FAN_KEY(e.dataKey))?.value : null;
+          {visible.map((p) => {
+            const value = byKey.get(p.id) ?? null;
+            const design = p.kind === 'klog' ? (byKey.get(DESIGN_KEY(p.id)) ?? null) : null;
+            const fan = showFan ? (byKey.get(FAN_KEY(p.id)) ?? null) : null;
             const delta =
-              baseTemp != null && e.value != null && e.dataKey !== baseId
-                ? e.value - baseTemp
-                : null;
+              baseTemp != null && value != null && p.id !== baseId ? value - baseTemp : null;
             return (
-              <tr key={e.dataKey}>
+              <tr key={p.id}>
                 <td className="pr-2">
                   <span
                     className="mr-1.5 inline-block h-2.5 w-2.5 rounded-full align-middle"
-                    style={{ background: e.color }}
+                    style={{ background: p.color }}
                   />
-                  {nameOf(e.dataKey)}
+                  {nameOf(p.id)}
                 </td>
                 <td className="pr-2 text-right text-zinc-100">
-                  {e.value != null ? `${e.value.toFixed(1)}°C` : '—'}
+                  {value != null ? `${value.toFixed(2)}°C` : '—'}
+                </td>
+                <td className="pr-2 text-right text-zinc-500">
+                  {design != null ? `design ${design.toFixed(2)}` : ''}
                 </td>
                 <td className="pr-2 text-right text-zinc-400">
                   {delta != null ? `${delta >= 0 ? '+' : ''}${delta.toFixed(1)}` : ''}

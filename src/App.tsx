@@ -6,6 +6,7 @@ import LevelPanel from './components/LevelPanel';
 import PhasesPanel from './components/PhasesPanel';
 import DeviationPanel from './components/DeviationPanel';
 import AlignPanel from './components/AlignPanel';
+import SummaryPanel from './components/SummaryPanel';
 import { DEFAULT_DRY_END_TEMP, defaultDryEndTemp, defaultAlignTemp, type AlignRefCol } from './lib/klog';
 import {
   computeAlignShift,
@@ -207,6 +208,12 @@ export default function App() {
                   alignTemp={alignTemp}
                   shifts={shifts}
                 />
+              </Section>
+            )}
+
+            {profiles.some((p) => p.kind === 'klog') && (
+              <Section title="Summary">
+                <SummaryPanel profiles={profiles.filter((p) => p.visible)} dryEndTemp={dryEndTemp} />
               </Section>
             )}
 

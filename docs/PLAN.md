@@ -171,7 +171,7 @@ kpro-diff の公開を「一回きりのレバレッジ」として位置づけ�
 **開始プロンプト**
 
 ```
-~/00.PJ/Kaffelogic/kpro-diff/docs/PLAN.md を読んで、Session 1(仕様策定)をお願いします。
+~/00.PJ/Kaffelogic/roast-overlay/docs/PLAN.md を読んで、Session 1(仕様策定)をお願いします。
 
 現状のアプリは http://localhost:5173 で動いています(dev サーバー起動済み)。
 実際に .kpro を読ませて挙動を確認してから仕様を書いてください。
@@ -200,7 +200,7 @@ kpro-diff の公開を「一回きりのレバレッジ」として位置づけ�
 **開始プロンプト**
 
 ```
-~/00.PJ/Kaffelogic/kpro-diff/docs/SPEC.md を読んで実装してください。
+~/00.PJ/Kaffelogic/roast-overlay/docs/SPEC.md を読んで実装してください。
 
 dev サーバーは http://localhost:5173 で起動済みです。
 実装したら必ずブラウザで表示を確認し、SPEC の受け入れ条件を満たすか検証してください。

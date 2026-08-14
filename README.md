@@ -1,6 +1,11 @@
-# kpro-diff
+# Overlay(旧 kpro-diff)
 
-Kaffelogic の `.kpro` プロファイルを**重ね描き比較**する private な Web ツール。
+> 🚧 **2026-08-14 改称・公開準備中。** `.klog`(実測ログ)対応を含む現行の仕様は
+> [`docs/SPEC.md`](docs/SPEC.md) が正。この README は Phase 1-2 時点の記述で、
+> 英語版への書き換えは公開整備(F10)で行う。
+> リポジトリ名 `roast-overlay` / 公開予定ドメイン `overlay.coffee`。
+
+Kaffelogic の `.kpro` プロファイルを**重ね描き比較**する Web ツール。
 Kaffelogic Studio 標準の比較が使いにくい(比較先の Zone が見えない・取り回しが悪い)問題を、
 同一豆でカーブを 1 変数ずつ変える検証運用(V2 / V2a / V2b / V2c 系列)向けに解消するのが目的。
 

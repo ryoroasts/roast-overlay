@@ -1,4 +1,6 @@
 import type { LoadedProfile } from '../lib/profiles';
+import type { Dict } from '../i18n/en';
+import { useI18n } from '../i18n/context';
 
 interface Props {
   profiles: LoadedProfile[];
@@ -6,57 +8,57 @@ interface Props {
 
 interface Field {
   key: string;
-  label: string;
+  label: (t: Dict) => string;
   unit?: string;
 }
 
-// 比較対象のスカラー項目(group ごと)
-const GROUPS: { title: string; fields: Field[] }[] = [
+// 比較対象のスカラー項目(group ごと)。Kp/Ki/Kd/boost/×Kp/×Kd は両言語共通の技術用語なのでそのまま。
+const GROUPS: { title: (t: Dict) => string; fields: Field[] }[] = [
   {
-    title: 'Preheat',
+    title: (t) => t.diffGroupPreheat,
     fields: [
-      { key: 'preheat_nominal_temperature', label: '予熱目標温度', unit: '°C' },
-      { key: 'preheat_power', label: '予熱パワー', unit: 'W' },
+      { key: 'preheat_nominal_temperature', label: (t) => t.diffFieldPreheatTemp, unit: '°C' },
+      { key: 'preheat_power', label: (t) => t.diffFieldPreheatPower, unit: 'W' },
     ],
   },
   {
-    title: 'PID',
+    title: (t) => t.diffGroupPID,
     fields: [
-      { key: 'roast_PID_Kp', label: 'Kp' },
-      { key: 'roast_PID_Ki', label: 'Ki' },
-      { key: 'roast_PID_Kd', label: 'Kd' },
+      { key: 'roast_PID_Kp', label: () => 'Kp' },
+      { key: 'roast_PID_Ki', label: () => 'Ki' },
+      { key: 'roast_PID_Kd', label: () => 'Kd' },
     ],
   },
   {
-    title: 'Zone 1',
+    title: (t) => t.diffGroupZone1,
     fields: [
-      { key: 'zone1_time_start', label: '開始', unit: 's' },
-      { key: 'zone1_time_end', label: '終了', unit: 's' },
-      { key: 'zone1_boost', label: 'boost' },
-      { key: 'zone1_multiplier_Kp', label: '×Kp' },
-      { key: 'zone1_multiplier_Kd', label: '×Kd' },
+      { key: 'zone1_time_start', label: (t) => t.diffFieldStart, unit: 's' },
+      { key: 'zone1_time_end', label: (t) => t.diffFieldEnd, unit: 's' },
+      { key: 'zone1_boost', label: () => 'boost' },
+      { key: 'zone1_multiplier_Kp', label: () => '×Kp' },
+      { key: 'zone1_multiplier_Kd', label: () => '×Kd' },
     ],
   },
   {
-    title: 'Zone 2',
+    title: (t) => t.diffGroupZone2,
     fields: [
-      { key: 'zone2_time_start', label: '開始', unit: 's' },
-      { key: 'zone2_time_end', label: '終了', unit: 's' },
-      { key: 'zone2_boost', label: 'boost' },
-      { key: 'zone2_multiplier_Kp', label: '×Kp' },
-      { key: 'zone2_multiplier_Kd', label: '×Kd' },
+      { key: 'zone2_time_start', label: (t) => t.diffFieldStart, unit: 's' },
+      { key: 'zone2_time_end', label: (t) => t.diffFieldEnd, unit: 's' },
+      { key: 'zone2_boost', label: () => 'boost' },
+      { key: 'zone2_multiplier_Kp', label: () => '×Kp' },
+      { key: 'zone2_multiplier_Kd', label: () => '×Kd' },
     ],
   },
   {
-    title: 'Corner 1',
+    title: (t) => t.diffGroupCorner1,
     fields: [
-      { key: 'corner1_time_start', label: '開始', unit: 's' },
-      { key: 'corner1_time_end', label: '終了', unit: 's' },
+      { key: 'corner1_time_start', label: (t) => t.diffFieldStart, unit: 's' },
+      { key: 'corner1_time_end', label: (t) => t.diffFieldEnd, unit: 's' },
     ],
   },
   {
-    title: 'その他',
-    fields: [{ key: 'recommended_level', label: '推奨 Level' }],
+    title: (t) => t.diffGroupOther,
+    fields: [{ key: 'recommended_level', label: (t) => t.diffFieldRecommendedLevel }],
   },
 ];
 
@@ -75,6 +77,7 @@ function fmt(raw: string | undefined): string {
 }
 
 export default function DiffTable({ profiles }: Props) {
+  const { t } = useI18n();
   if (profiles.length === 0) return null;
   const base = profiles[0];
 
@@ -83,7 +86,7 @@ export default function DiffTable({ profiles }: Props) {
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr className="border-b border-zinc-700 text-left">
-            <th className="px-3 py-2 font-medium text-zinc-400">項目</th>
+            <th className="px-3 py-2 font-medium text-zinc-400">{t.diffColItem}</th>
             {profiles.map((p, i) => (
               <th key={p.id} className="px-3 py-2 font-medium">
                 <span className="inline-flex items-center gap-2">
@@ -92,7 +95,7 @@ export default function DiffTable({ profiles }: Props) {
                     style={{ background: p.color }}
                   />
                   {p.profile.name}
-                  {i === 0 && <span className="text-xs text-zinc-500">(基準)</span>}
+                  {i === 0 && <span className="text-xs text-zinc-500">{t.diffBaseline}</span>}
                 </span>
               </th>
             ))}
@@ -100,7 +103,7 @@ export default function DiffTable({ profiles }: Props) {
         </thead>
         <tbody>
           {GROUPS.map((group) => (
-            <FieldGroup key={group.title} group={group} profiles={profiles} base={base} />
+            <FieldGroup key={group.title(t)} group={group} profiles={profiles} base={base} t={t} />
           ))}
         </tbody>
       </table>
@@ -112,10 +115,12 @@ function FieldGroup({
   group,
   profiles,
   base,
+  t,
 }: {
-  group: { title: string; fields: Field[] };
+  group: { title: (t: Dict) => string; fields: Field[] };
   profiles: LoadedProfile[];
   base: LoadedProfile;
+  t: Dict;
 }) {
   return (
     <>
@@ -124,7 +129,7 @@ function FieldGroup({
           colSpan={profiles.length + 1}
           className="px-3 py-1 text-xs font-semibold uppercase tracking-wide text-amber-400/80"
         >
-          {group.title}
+          {group.title(t)}
         </td>
       </tr>
       {group.fields.map((field) => {
@@ -132,7 +137,7 @@ function FieldGroup({
         return (
           <tr key={field.key} className="border-b border-zinc-800/60">
             <td className="px-3 py-1.5 text-zinc-400">
-              {field.label}
+              {field.label(t)}
               {field.unit && <span className="ml-1 text-xs text-zinc-600">{field.unit}</span>}
             </td>
             {profiles.map((p, i) => {

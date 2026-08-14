@@ -1,6 +1,7 @@
 import { expandCurve, levelToTemp, maxValue } from '../lib/curve';
 import { KLOG_COL, rowValueAtTime } from '../lib/klog';
 import type { LoadedProfile } from '../lib/profiles';
+import { useI18n } from '../i18n/context';
 
 interface Props {
   profiles: LoadedProfile[];
@@ -12,6 +13,7 @@ interface Props {
 }
 
 export default function LevelPanel({ profiles, levels, onLevelChange, syncAll, onSyncAllChange }: Props) {
+  const { t } = useI18n();
   return (
     <div className="space-y-3">
       <label className="flex items-center gap-2 text-sm text-zinc-400">
@@ -20,13 +22,9 @@ export default function LevelPanel({ profiles, levels, onLevelChange, syncAll, o
           checked={syncAll}
           onChange={(e) => onSyncAllChange(e.target.checked)}
         />
-        Sync all(全プロファイルを1つの Level に揃える)
+        {t.levelSyncAll}
       </label>
-      <p className="text-xs text-zinc-500">
-        Level は焙煎度の絶対値ではなく、roast_levels テーブル(Level 0〜6)から終了温度を
-        0.1 刻みで線形補間して選ぶインデックス。カーブ自体は不変で、止める温度だけが変わる。
-        既定値は .klog は実際に焼いた Level(roasting_level)、.kpro は推奨 Level(recommended_level)。
-      </p>
+      <p className="text-xs text-zinc-500">{t.levelExplain}</p>
       <div className="grid gap-2 sm:grid-cols-2">
         {profiles.map((p) => {
           const level = levels[p.id] ?? 0;
@@ -54,7 +52,7 @@ export default function LevelPanel({ profiles, levels, onLevelChange, syncAll, o
                   {temp != null ? `${temp.toFixed(1)}°C` : '—'}
                   {actualEnd != null && (
                     <span className="ml-1 font-normal text-zinc-400">
-                      (actual {actualEnd.toFixed(1)})
+                      {t.levelActual(actualEnd.toFixed(1))}
                     </span>
                   )}
                 </span>
@@ -81,7 +79,7 @@ export default function LevelPanel({ profiles, levels, onLevelChange, syncAll, o
               </div>
               {beyond && curveMax != null && temp != null && (
                 <p className="text-xs text-amber-500">
-                  {temp.toFixed(1)}°C — beyond curve peak {curveMax.toFixed(1)}°C
+                  {t.levelBeyondPeak(temp.toFixed(1), curveMax.toFixed(1))}
                 </p>
               )}
             </div>

@@ -13,6 +13,7 @@ import {
 import { expandCurve } from '../lib/curve';
 import { computeDeviationSummary, klogValueAt, KLOG_COL, DEVIATION_BAND } from '../lib/klog';
 import type { AlignMode, AlignShift, LoadedProfile } from '../lib/profiles';
+import { useI18n } from '../i18n/context';
 
 interface Props {
   /** 表示中の全プロファイル(.kpro も含む。x 軸を Roast カーブと揃えるため) */
@@ -43,6 +44,7 @@ function deviationAt(p: LoadedProfile, realT: number): number | null {
 }
 
 export default function DeviationPanel({ profiles, shifts, alignMode, step = 2 }: Props) {
+  const { t } = useI18n();
   const klogs = profiles.filter((p) => p.kind === 'klog' && p.log);
 
   const { data, tMax, xMin, xTicks, summaries } = useMemo(() => {
@@ -134,7 +136,7 @@ export default function DeviationPanel({ profiles, shifts, alignMode, step = 2 }
               if (!active || !payload || payload.length === 0) return null;
               return (
                 <div className="rounded-lg border border-zinc-700 bg-zinc-900/95 px-3 py-2 text-sm shadow-lg">
-                  <p className="mb-1 font-medium text-zinc-300">時間 {fmtTime(Number(label))}</p>
+                  <p className="mb-1 font-medium text-zinc-300">{t.deviationTooltipTime(fmtTime(Number(label)))}</p>
                   {klogs.map((p) => {
                     const entry = payload.find((e) => e.dataKey === p.id);
                     const v = entry?.value as number | null | undefined;
@@ -167,11 +169,11 @@ export default function DeviationPanel({ profiles, shifts, alignMode, step = 2 }
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="border-b border-zinc-700 text-left text-zinc-400">
-              <th className="px-2 py-1.5 font-medium">プロファイル</th>
-              <th className="px-2 py-1.5 text-right font-medium">Max above</th>
-              <th className="px-2 py-1.5 text-right font-medium">Max below</th>
-              <th className="px-2 py-1.5 text-right font-medium">Converged</th>
-              <th className="px-2 py-1.5 text-right font-medium">At end</th>
+              <th className="px-2 py-1.5 font-medium">{t.deviationColProfile}</th>
+              <th className="px-2 py-1.5 text-right font-medium">{t.deviationColMaxAbove}</th>
+              <th className="px-2 py-1.5 text-right font-medium">{t.deviationColMaxBelow}</th>
+              <th className="px-2 py-1.5 text-right font-medium">{t.deviationColConverged}</th>
+              <th className="px-2 py-1.5 text-right font-medium">{t.deviationColAtEnd}</th>
             </tr>
           </thead>
           <tbody>
@@ -195,7 +197,7 @@ export default function DeviationPanel({ profiles, shifts, alignMode, step = 2 }
                     : '—'}
                 </td>
                 <td className="px-2 py-1.5 text-right tabular-nums">
-                  {summary.converged != null ? fmtTime(summary.converged - shift) : 'did not converge'}
+                  {summary.converged != null ? fmtTime(summary.converged - shift) : t.deviationDidNotConverge}
                 </td>
                 <td className="px-2 py-1.5 text-right tabular-nums">
                   {summary.atEnd != null

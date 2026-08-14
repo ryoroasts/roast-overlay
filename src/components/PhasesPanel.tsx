@@ -1,5 +1,6 @@
 import { computePhases, computePhasesAt } from '../lib/klog';
 import type { AlignMode, AlignShift, LoadedProfile } from '../lib/profiles';
+import { useI18n } from '../i18n/context';
 
 interface Props {
   profiles: LoadedProfile[];
@@ -28,13 +29,14 @@ export default function PhasesPanel({
   alignTemp,
   shifts,
 }: Props) {
+  const { t } = useI18n();
   const klogs = profiles.filter((p) => p.kind === 'klog' && p.log);
   if (klogs.length === 0) return null;
 
   return (
     <div className="space-y-3">
       <label className="flex items-center gap-2 text-sm text-zinc-400">
-        Dry end 温度(mean_temp が上向きに横切る基準)
+        {t.phasesDryEndTempLabel}
         <input
           type="number"
           step={0.1}
@@ -48,18 +50,15 @@ export default function PhasesPanel({
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="border-b border-zinc-700 text-left text-zinc-400">
-              <th className="px-2 py-1.5 font-medium">プロファイル</th>
-              <th className="px-2 py-1.5 text-right font-medium">Dry end</th>
-              <th
-                className="px-2 py-1.5 text-right font-medium"
-                title="First crack はユーザーの手押し(button press)。豆の弾け方でずれる — see Align by temperature"
-              >
-                First crack
+              <th className="px-2 py-1.5 font-medium">{t.phasesColProfile}</th>
+              <th className="px-2 py-1.5 text-right font-medium">{t.phasesColDryEnd}</th>
+              <th className="px-2 py-1.5 text-right font-medium" title={t.phasesFcTooltip}>
+                {t.phasesColFirstCrack}
               </th>
-              <th className="px-2 py-1.5 text-right font-medium">Roast end</th>
-              <th className="px-2 py-1.5 text-right font-medium">Maillard</th>
-              <th className="px-2 py-1.5 text-right font-medium">Development</th>
-              <th className="px-2 py-1.5 text-right font-medium">DTR</th>
+              <th className="px-2 py-1.5 text-right font-medium">{t.phasesColRoastEnd}</th>
+              <th className="px-2 py-1.5 text-right font-medium">{t.phasesColMaillard}</th>
+              <th className="px-2 py-1.5 text-right font-medium">{t.phasesColDevelopment}</th>
+              <th className="px-2 py-1.5 text-right font-medium">{t.phasesColDTR}</th>
             </tr>
           </thead>
           <tbody>
@@ -101,15 +100,13 @@ export default function PhasesPanel({
       {/* F6: 温度基準を選んでいる間、button と temperature を並べて出す */}
       {alignMode === 'temp' && (
         <div className="overflow-x-auto">
-          <p className="mb-1 text-xs text-zinc-500">
-            button 基準(手押しの First crack) vs temperature 基準({alignTemp}℃ 通過時刻を FC の代わりに使う)
-          </p>
+          <p className="mb-1 text-xs text-zinc-500">{t.phasesComparisonNote(alignTemp)}</p>
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="border-b border-zinc-700 text-left text-zinc-400">
-                <th className="px-2 py-1.5 font-medium">プロファイル / 項目</th>
-                <th className="px-2 py-1.5 text-right font-medium">button 基準</th>
-                <th className="px-2 py-1.5 text-right font-medium">temperature 基準</th>
+                <th className="px-2 py-1.5 font-medium">{t.phasesColProfileMetric}</th>
+                <th className="px-2 py-1.5 text-right font-medium">{t.phasesColButtonBasis}</th>
+                <th className="px-2 py-1.5 text-right font-medium">{t.phasesColTempBasis}</th>
               </tr>
             </thead>
             <tbody>
@@ -120,10 +117,14 @@ export default function PhasesPanel({
                 const tempFc = crossing?.reached ? crossing.shift : null;
                 const tempPhases = computePhasesAt(log, dryEndTemp, tempFc);
                 const rows: { metric: string; button: number | null; temp: number | null; pct?: boolean }[] = [
-                  { metric: 'Maillard', button: buttonPhases.maillard, temp: tempPhases.maillard },
-                  { metric: 'Development', button: buttonPhases.development, temp: tempPhases.development },
+                  { metric: t.phasesColMaillard, button: buttonPhases.maillard, temp: tempPhases.maillard },
                   {
-                    metric: 'DTR',
+                    metric: t.phasesColDevelopment,
+                    button: buttonPhases.development,
+                    temp: tempPhases.development,
+                  },
+                  {
+                    metric: t.phasesColDTR,
                     button: buttonPhases.dtr != null ? buttonPhases.dtr * 100 : null,
                     temp: tempPhases.dtr != null ? tempPhases.dtr * 100 : null,
                     pct: true,
@@ -150,7 +151,7 @@ export default function PhasesPanel({
                           ? `${r.temp.toFixed(2)}%`
                           : fmtTime(r.temp)
                         : crossing && !crossing.reached
-                          ? `did not reach ${alignTemp}°C`
+                          ? t.didNotReachTemp(alignTemp)
                           : '—'}
                     </td>
                   </tr>

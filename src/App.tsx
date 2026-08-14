@@ -17,6 +17,8 @@ import {
   type ParsedFile,
 } from './lib/profiles';
 import { colorFor } from './lib/palette';
+import { useI18n } from './i18n/context';
+import type { Lang } from './i18n/context';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -28,6 +30,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 export default function App() {
+  const { t, lang, setLang } = useI18n();
   const [profiles, setProfiles] = useState<LoadedProfile[]>([]);
   // F3: 個別 Level が基本。「Sync all」ON のときだけ全プロファイルがこの1値を共有する。
   const [syncAll, setSyncAll] = useState(false);
@@ -90,20 +93,33 @@ export default function App() {
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
       <div className="mx-auto max-w-6xl space-y-5 px-4 py-6">
-        <header>
-          <h1 className="text-xl font-bold">
-            kpro-diff <span className="text-sm font-normal text-zinc-500">Kaffelogic プロファイル比較</span>
-          </h1>
-          <p className="mt-1 text-sm text-zinc-500">
-            複数の .kpro を重ね描きして差分を見る。ファイルはブラウザ内で処理され、どこにも送信されません。
-          </p>
+        <header className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-xl font-bold">
+              {t.appName} <span className="text-sm font-normal text-zinc-500">{t.appTagline}</span>
+            </h1>
+            <p className="mt-1 text-sm text-zinc-500">{t.appPrivacy}</p>
+          </div>
+          <div className="flex shrink-0 items-center gap-1 text-sm">
+            {(['en', 'ja'] as Lang[]).map((l) => (
+              <button
+                key={l}
+                onClick={() => setLang(l)}
+                className={`rounded px-2 py-1 ${
+                  lang === l ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-500 hover:text-zinc-300'
+                }`}
+              >
+                {l === 'en' ? t.langToggleEn : t.langToggleJa}
+              </button>
+            ))}
+          </div>
         </header>
 
         <FileDrop onLoad={addProfiles} />
 
         {profiles.length > 0 && (
           <>
-            <Section title="読み込み済みプロファイル">
+            <Section title={t.loadedSection}>
               <ul className="flex flex-wrap gap-2">
                 {profiles.map((p) => (
                   <li
@@ -115,7 +131,7 @@ export default function App() {
                     <button
                       onClick={() => toggle(p.id)}
                       className="flex items-center gap-2"
-                      title="表示/非表示"
+                      title={t.toggleVisibility}
                     >
                       <span
                         className="inline-block h-3 w-3 rounded-full"
@@ -125,7 +141,7 @@ export default function App() {
                       {p.log?.aborted && (
                         <span
                           className="text-amber-400"
-                          title={`中断ログ: reason=${p.log.endReason} / roast_end=${p.log.roastEnd.toFixed(1)}s で終了`}
+                          title={t.abortedTitle(p.log.endReason, p.log.roastEnd.toFixed(1))}
                         >
                           ⚠
                         </span>
@@ -133,20 +149,16 @@ export default function App() {
                       {alignMode !== 'time' && shifts[p.id] && !shifts[p.id].reached && (
                         <span
                           className="text-xs text-amber-400"
-                          title={
-                            alignMode === 'temp'
-                              ? `did not reach ${alignTemp}°C`
-                              : 'no first crack recorded'
-                          }
+                          title={alignMode === 'temp' ? t.didNotReachTemp(alignTemp) : t.noFirstCrackRecorded}
                         >
-                          {alignMode === 'temp' ? `did not reach ${alignTemp}°C` : 'no FC'}
+                          {alignMode === 'temp' ? t.didNotReachTemp(alignTemp) : t.noFC}
                         </span>
                       )}
                     </button>
                     <button
                       onClick={() => remove(p.id)}
                       className="text-zinc-500 hover:text-red-400"
-                      title="削除"
+                      title={t.remove}
                     >
                       ×
                     </button>
@@ -156,7 +168,7 @@ export default function App() {
             </Section>
 
             {profiles.some((p) => p.kind === 'klog') && (
-              <Section title="Align by">
+              <Section title={t.sectionAlignBy}>
                 <AlignPanel
                   alignMode={alignMode}
                   onAlignModeChange={setAlignMode}
@@ -168,7 +180,7 @@ export default function App() {
               </Section>
             )}
 
-            <Section title="Roast カーブ(温度 × 時間)">
+            <Section title={t.sectionRoastCurve}>
               <RoastChart
                 profiles={profiles}
                 levels={levels}
@@ -179,7 +191,7 @@ export default function App() {
             </Section>
 
             {profiles.some((p) => p.kind === 'klog') && (
-              <Section title="Deviation(実測 − 設計)">
+              <Section title={t.sectionDeviation}>
                 <DeviationPanel
                   profiles={profiles.filter((p) => p.visible)}
                   shifts={shifts}
@@ -188,7 +200,7 @@ export default function App() {
               </Section>
             )}
 
-            <Section title="終了温度(Level → roast_levels 補間)">
+            <Section title={t.sectionEndTemp}>
               <LevelPanel
                 profiles={profiles.filter((p) => p.visible)}
                 levels={levels}
@@ -199,7 +211,7 @@ export default function App() {
             </Section>
 
             {profiles.some((p) => p.kind === 'klog') && (
-              <Section title="フェーズ(Dry / Maillard / Development)">
+              <Section title={t.sectionPhases}>
                 <PhasesPanel
                   profiles={profiles.filter((p) => p.visible)}
                   dryEndTemp={dryEndTemp}
@@ -212,12 +224,12 @@ export default function App() {
             )}
 
             {profiles.some((p) => p.kind === 'klog') && (
-              <Section title="Summary">
+              <Section title={t.sectionSummary}>
                 <SummaryPanel profiles={profiles.filter((p) => p.visible)} dryEndTemp={dryEndTemp} />
               </Section>
             )}
 
-            <Section title="スカラー差分(基準=左端)">
+            <Section title={t.sectionScalarDiff}>
               <DiffTable profiles={profiles.filter((p) => p.visible)} />
             </Section>
           </>

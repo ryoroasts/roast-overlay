@@ -16,6 +16,7 @@ import { expandCurve, valueAtTime, levelToTemp, timeAtValue } from '../lib/curve
 import { activeZones } from '../lib/kpro';
 import { computePhases, klogValueAt, KLOG_COL } from '../lib/klog';
 import type { AlignMode, AlignShift, LoadedProfile } from '../lib/profiles';
+import { useI18n } from '../i18n/context';
 
 interface Props {
   profiles: LoadedProfile[];
@@ -84,6 +85,7 @@ interface ZoneBand {
 }
 
 export default function RoastChart({ profiles, levels, dryEndTemp, shifts, alignMode, step = 2 }: Props) {
+  const { t } = useI18n();
   const [rightAxis, setRightAxis] = useState<RightAxis>('fan');
   const [showZones, setShowZones] = useState(true);
   const [showRaw, setShowRaw] = useState(false);
@@ -261,11 +263,7 @@ export default function RoastChart({ profiles, levels, dryEndTemp, shifts, align
   }, [visible, step, levels, showRaw, dryEndTemp, rightAxis, showDesignROR, shifts, alignMode]);
 
   if (visible.length === 0) {
-    return (
-      <div className="flex h-80 items-center justify-center text-zinc-500">
-        表示するプロファイルがありません
-      </div>
-    );
+    return <div className="flex h-80 items-center justify-center text-zinc-500">{t.chartNoProfiles}</div>;
   }
 
   const hasKlog = visible.some((p) => p.kind === 'klog');
@@ -275,7 +273,7 @@ export default function RoastChart({ profiles, levels, dryEndTemp, shifts, align
     <div>
       <div className="mb-2 flex flex-wrap items-center gap-4 text-sm text-zinc-400">
         <div className="flex items-center gap-3">
-          <span>右軸:</span>
+          <span>{t.chartRightAxis}</span>
           {(['fan', 'ror', 'none'] as const).map((opt) => (
             <label key={opt} className="flex items-center gap-1">
               <input
@@ -284,7 +282,7 @@ export default function RoastChart({ profiles, levels, dryEndTemp, shifts, align
                 checked={rightAxis === opt}
                 onChange={() => setRightAxis(opt)}
               />
-              {opt === 'fan' ? 'Fan' : opt === 'ror' ? 'RoR' : 'なし'}
+              {opt === 'fan' ? t.chartRightAxisFan : opt === 'ror' ? t.chartRightAxisRoR : t.chartRightAxisNone}
             </label>
           ))}
         </div>
@@ -295,7 +293,7 @@ export default function RoastChart({ profiles, levels, dryEndTemp, shifts, align
               checked={showDesignROR}
               onChange={(e) => setShowDesignROR(e.target.checked)}
             />
-            設計 RoR も重ねる(破線)
+            {t.chartShowDesignROR}
           </label>
         )}
         <label className="flex items-center gap-1.5">
@@ -304,17 +302,15 @@ export default function RoastChart({ profiles, levels, dryEndTemp, shifts, align
             checked={showZones}
             onChange={(e) => setShowZones(e.target.checked)}
           />
-          Zone 帯
+          {t.chartShowZones}
         </label>
         <label className="flex items-center gap-1.5">
           <input type="checkbox" checked={showRaw} onChange={(e) => setShowRaw(e.target.checked)} />
-          生データ(spot_temp / temp、.klog のみ)
+          {t.chartShowRaw}
         </label>
       </div>
 
-      {rightAxis === 'ror' && !hasKlog && (
-        <p className="mb-2 text-sm text-amber-500">RoR requires a .klog file(.kpro には実測 RoR がありません)</p>
-      )}
+      {rightAxis === 'ror' && !hasKlog && <p className="mb-2 text-sm text-amber-500">{t.chartRorRequiresKlog}</p>}
 
       <ResponsiveContainer width="100%" height={440}>
         <ComposedChart data={data} margin={{ top: 16, right: showRightAxis ? 56 : 16, bottom: 8, left: 0 }}>
@@ -586,6 +582,7 @@ function DiffTooltip(props: {
   label?: number;
 }) {
   const { visible, nameOf, baseId, rightAxis, active, payload, label } = props;
+  const { t } = useI18n();
   if (!active || !payload || payload.length === 0) return null;
 
   const byKey = new Map(payload.map((e) => [e.dataKey, e.value]));
@@ -593,7 +590,7 @@ function DiffTooltip(props: {
 
   return (
     <div className="rounded-lg border border-zinc-700 bg-zinc-900/95 px-3 py-2 text-sm shadow-lg">
-      <p className="mb-1 font-medium text-zinc-300">時間 {fmtTime(Number(label))}</p>
+      <p className="mb-1 font-medium text-zinc-300">{t.chartTooltipTime(fmtTime(Number(label)))}</p>
       <table className="tabular-nums">
         <tbody>
           {visible.map((p) => {
@@ -616,7 +613,7 @@ function DiffTooltip(props: {
                   {value != null ? `${value.toFixed(2)}°C` : '—'}
                 </td>
                 <td className="pr-2 text-right text-zinc-500">
-                  {design != null ? `design ${design.toFixed(2)}` : ''}
+                  {design != null ? t.chartDesignPrefix(design.toFixed(2)) : ''}
                 </td>
                 <td className="pr-2 text-right text-zinc-400">
                   {delta != null ? `${delta >= 0 ? '+' : ''}${delta.toFixed(1)}` : ''}

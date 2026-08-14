@@ -2,12 +2,14 @@ import { useRef, useState } from 'react';
 import { parseKpro } from '../lib/kpro';
 import { parseKlog } from '../lib/klog';
 import type { ParsedFile } from '../lib/profiles';
+import { useI18n } from '../i18n/context';
 
 interface Props {
   onLoad: (files: ParsedFile[]) => void;
 }
 
 export default function FileDrop({ onLoad }: Props) {
+  const { t } = useI18n();
   const [over, setOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -52,9 +54,7 @@ export default function FileDrop({ onLoad }: Props) {
         className="hidden"
         onChange={(e) => void handleFiles(e.target.files)}
       />
-      <p className="text-zinc-300">
-        .kpro / .klog をここにドラッグ&ドロップ、またはクリックして選択(複数可)
-      </p>
+      <p className="text-zinc-300">{t.dropzone}</p>
     </div>
   );
 }

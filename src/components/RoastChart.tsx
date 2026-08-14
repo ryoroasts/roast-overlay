@@ -39,6 +39,10 @@ const FAN_KEY = (id: string) => `${id}__fan`;
 const DESIGN_KEY = (id: string) => `${id}__design`;
 const SPOT_KEY = (id: string) => `${id}__spot`;
 const TEMP_KEY = (id: string) => `${id}__temp`;
+const ROR_KEY = (id: string) => `${id}__ror`;
+const ROR_DESIGN_KEY = (id: string) => `${id}__ror_design`;
+
+type RightAxis = 'fan' | 'ror' | 'none';
 
 /** mm:ss 表示 */
 function fmtTime(sec: number): string {
@@ -76,15 +80,16 @@ interface ZoneBand {
 }
 
 export default function RoastChart({ profiles, levels, dryEndTemp, step = 2 }: Props) {
-  const [showFan, setShowFan] = useState(true);
+  const [rightAxis, setRightAxis] = useState<RightAxis>('fan');
   const [showZones, setShowZones] = useState(true);
   const [showRaw, setShowRaw] = useState(false);
+  const [showDesignROR, setShowDesignROR] = useState(false);
 
   const visible = profiles.filter((p) => p.visible && p.profile.roast.anchors.length > 0);
   const nameOf = (id: string) => visible.find((p) => p.id === id)?.profile.name ?? id;
   const baseId = visible[0]?.id;
 
-  const { data, endDots, endLines, phaseMarks, zoneBands, fanDomain, tMax, xTicks } = useMemo(() => {
+  const { data, endDots, endLines, phaseMarks, zoneBands, fanDomain, rorDomain, tMax, xTicks } = useMemo(() => {
     const polys = visible.map((p) => ({
       id: p.id,
       color: p.color,
@@ -119,6 +124,11 @@ export default function RoastChart({ profiles, levels, dryEndTemp, step = 2 }: P
           if (showRaw) {
             row[SPOT_KEY(id)] = klogValueAt(p.log, KLOG_COL.spotTemp, t);
             row[TEMP_KEY(id)] = klogValueAt(p.log, KLOG_COL.temp, t);
+          }
+          if (rightAxis === 'ror') {
+            // RoR は actual_ROR 列をそのまま使う。自前で微分しない(F4)。
+            row[ROR_KEY(id)] = klogValueAt(p.log, KLOG_COL.actualROR, t);
+            if (showDesignROR) row[ROR_DESIGN_KEY(id)] = klogValueAt(p.log, KLOG_COL.profileROR, t);
           }
         } else {
           // .kpro 単体はベジェ再構成の1本(実線)
@@ -181,6 +191,32 @@ export default function RoastChart({ profiles, levels, dryEndTemp, step = 2 }: P
       ? [Math.floor(fanMin / 1000) * 1000, Math.ceil(fanMax / 1000) * 1000]
       : null;
 
+    // RoR 軸ドメイン(t<=roastEnd のデータだけから、5 単位で丸め。F4: 降温域の負値は出さない)
+    let rorMin = Infinity;
+    let rorMax = -Infinity;
+    if (rightAxis === 'ror') {
+      for (const row of rows) {
+        for (const p of visible) {
+          if (p.kind !== 'klog') continue;
+          const v = row[ROR_KEY(p.id)];
+          if (v != null) {
+            if (v < rorMin) rorMin = v;
+            if (v > rorMax) rorMax = v;
+          }
+          if (showDesignROR) {
+            const dv = row[ROR_DESIGN_KEY(p.id)];
+            if (dv != null) {
+              if (dv < rorMin) rorMin = dv;
+              if (dv > rorMax) rorMax = dv;
+            }
+          }
+        }
+      }
+    }
+    const rd: [number, number] | null = Number.isFinite(rorMin)
+      ? [Math.floor(rorMin / 5) * 5, Math.ceil(rorMax / 5) * 5]
+      : null;
+
     return {
       data: rows,
       endDots: dots,
@@ -188,10 +224,11 @@ export default function RoastChart({ profiles, levels, dryEndTemp, step = 2 }: P
       phaseMarks: marks,
       zoneBands: bands,
       fanDomain: fd,
+      rorDomain: rd,
       tMax,
       xTicks: ticks,
     };
-  }, [visible, step, levels, showRaw, dryEndTemp]);
+  }, [visible, step, levels, showRaw, dryEndTemp, rightAxis, showDesignROR]);
 
   if (visible.length === 0) {
     return (
@@ -201,13 +238,36 @@ export default function RoastChart({ profiles, levels, dryEndTemp, step = 2 }: P
     );
   }
 
+  const hasKlog = visible.some((p) => p.kind === 'klog');
+  const showRightAxis = (rightAxis === 'fan' && !!fanDomain) || (rightAxis === 'ror' && !!rorDomain);
+
   return (
     <div>
-      <div className="mb-2 flex gap-4 text-sm text-zinc-400">
-        <label className="flex items-center gap-1.5">
-          <input type="checkbox" checked={showFan} onChange={(e) => setShowFan(e.target.checked)} />
-          ファン(破線・右軸)
-        </label>
+      <div className="mb-2 flex flex-wrap items-center gap-4 text-sm text-zinc-400">
+        <div className="flex items-center gap-3">
+          <span>右軸:</span>
+          {(['fan', 'ror', 'none'] as const).map((opt) => (
+            <label key={opt} className="flex items-center gap-1">
+              <input
+                type="radio"
+                name="rightAxis"
+                checked={rightAxis === opt}
+                onChange={() => setRightAxis(opt)}
+              />
+              {opt === 'fan' ? 'Fan' : opt === 'ror' ? 'RoR' : 'なし'}
+            </label>
+          ))}
+        </div>
+        {rightAxis === 'ror' && (
+          <label className="flex items-center gap-1.5">
+            <input
+              type="checkbox"
+              checked={showDesignROR}
+              onChange={(e) => setShowDesignROR(e.target.checked)}
+            />
+            設計 RoR も重ねる(破線)
+          </label>
+        )}
         <label className="flex items-center gap-1.5">
           <input
             type="checkbox"
@@ -222,8 +282,12 @@ export default function RoastChart({ profiles, levels, dryEndTemp, step = 2 }: P
         </label>
       </div>
 
+      {rightAxis === 'ror' && !hasKlog && (
+        <p className="mb-2 text-sm text-amber-500">RoR requires a .klog file(.kpro には実測 RoR がありません)</p>
+      )}
+
       <ResponsiveContainer width="100%" height={440}>
-        <ComposedChart data={data} margin={{ top: 16, right: showFan && fanDomain ? 56 : 16, bottom: 8, left: 0 }}>
+        <ComposedChart data={data} margin={{ top: 16, right: showRightAxis ? 56 : 16, bottom: 8, left: 0 }}>
           <CartesianGrid stroke="#3f3f46" strokeDasharray="3 3" />
           <XAxis
             dataKey="time"
@@ -247,9 +311,9 @@ export default function RoastChart({ profiles, levels, dryEndTemp, step = 2 }: P
             width={48}
             allowDataOverflow
           />
-          {showFan && fanDomain && (
+          {rightAxis === 'fan' && fanDomain && (
             <YAxis
-              yAxisId="fan"
+              yAxisId="right"
               orientation="right"
               type="number"
               domain={fanDomain}
@@ -257,6 +321,19 @@ export default function RoastChart({ profiles, levels, dryEndTemp, step = 2 }: P
               fontSize={11}
               width={52}
               tickFormatter={(v) => `${(v / 1000).toFixed(1)}k`}
+            />
+          )}
+          {rightAxis === 'ror' && rorDomain && (
+            <YAxis
+              yAxisId="right"
+              orientation="right"
+              type="number"
+              domain={rorDomain}
+              stroke="#71717a"
+              fontSize={11}
+              width={52}
+              tickFormatter={(v) => `${v}`}
+              label={{ value: '°C/min', angle: 90, position: 'insideRight', fill: '#71717a', fontSize: 10 }}
             />
           )}
 
@@ -276,7 +353,7 @@ export default function RoastChart({ profiles, levels, dryEndTemp, step = 2 }: P
               />
             ))}
 
-          <Tooltip content={<DiffTooltip visible={visible} nameOf={nameOf} baseId={baseId} showFan={showFan} />} />
+          <Tooltip content={<DiffTooltip visible={visible} nameOf={nameOf} baseId={baseId} rightAxis={rightAxis} />} />
           <Legend formatter={(id) => nameOf(String(id))} />
 
           {/* 温度カーブ(主線: .klog は mean_temp 実測、.kpro はベジェ再構成) */}
@@ -350,12 +427,12 @@ export default function RoastChart({ profiles, levels, dryEndTemp, step = 2 }: P
               ])}
 
           {/* ファンカーブ(破線・右軸) */}
-          {showFan &&
+          {rightAxis === 'fan' &&
             fanDomain &&
             visible.map((p) => (
               <Line
                 key={`fan-${p.id}`}
-                yAxisId="fan"
+                yAxisId="right"
                 type="monotone"
                 dataKey={FAN_KEY(p.id)}
                 name={FAN_KEY(p.id)}
@@ -369,6 +446,49 @@ export default function RoastChart({ profiles, levels, dryEndTemp, step = 2 }: P
                 legendType="none"
               />
             ))}
+
+          {/* RoR(実測、右軸)。actual_ROR をそのまま使う(F4) */}
+          {rightAxis === 'ror' &&
+            rorDomain &&
+            visible
+              .filter((p) => p.kind === 'klog')
+              .map((p) => (
+                <Line
+                  key={`ror-${p.id}`}
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey={ROR_KEY(p.id)}
+                  stroke={p.color}
+                  strokeWidth={1.5}
+                  dot={false}
+                  connectNulls={false}
+                  isAnimationActive={false}
+                  legendType="none"
+                />
+              ))}
+
+          {/* 設計 RoR(破線、チェックボックスで表示、F4) */}
+          {rightAxis === 'ror' &&
+            rorDomain &&
+            showDesignROR &&
+            visible
+              .filter((p) => p.kind === 'klog')
+              .map((p) => (
+                <Line
+                  key={`ror-design-${p.id}`}
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey={ROR_DESIGN_KEY(p.id)}
+                  stroke={p.color}
+                  strokeWidth={1.5}
+                  strokeDasharray="5 4"
+                  strokeOpacity={0.6}
+                  dot={false}
+                  connectNulls={false}
+                  isAnimationActive={false}
+                  legendType="none"
+                />
+              ))}
 
           {/* 終了温度の水平線(F3: カーブ最高点を超えていても必ず引く) */}
           {endLines.map((l) => (
@@ -430,12 +550,12 @@ function DiffTooltip(props: {
   visible: LoadedProfile[];
   nameOf: (id: string) => string;
   baseId?: string;
-  showFan: boolean;
+  rightAxis: RightAxis;
   active?: boolean;
   payload?: TooltipEntry[];
   label?: number;
 }) {
-  const { visible, nameOf, baseId, showFan, active, payload, label } = props;
+  const { visible, nameOf, baseId, rightAxis, active, payload, label } = props;
   if (!active || !payload || payload.length === 0) return null;
 
   const byKey = new Map(payload.map((e) => [e.dataKey, e.value]));
@@ -449,7 +569,8 @@ function DiffTooltip(props: {
           {visible.map((p) => {
             const value = byKey.get(p.id) ?? null;
             const design = p.kind === 'klog' ? (byKey.get(DESIGN_KEY(p.id)) ?? null) : null;
-            const fan = showFan ? (byKey.get(FAN_KEY(p.id)) ?? null) : null;
+            const fan = rightAxis === 'fan' ? (byKey.get(FAN_KEY(p.id)) ?? null) : null;
+            const ror = rightAxis === 'ror' ? (byKey.get(ROR_KEY(p.id)) ?? null) : null;
             const delta =
               baseTemp != null && value != null && p.id !== baseId ? value - baseTemp : null;
             return (
@@ -470,9 +591,14 @@ function DiffTooltip(props: {
                 <td className="pr-2 text-right text-zinc-400">
                   {delta != null ? `${delta >= 0 ? '+' : ''}${delta.toFixed(1)}` : ''}
                 </td>
-                {showFan && (
+                {rightAxis === 'fan' && (
                   <td className="text-right text-zinc-500">
                     {fan != null ? `${Math.round(fan)}rpm` : ''}
+                  </td>
+                )}
+                {rightAxis === 'ror' && (
+                  <td className="text-right text-zinc-500">
+                    {ror != null ? `${ror.toFixed(1)}°C/min` : ''}
                   </td>
                 )}
               </tr>

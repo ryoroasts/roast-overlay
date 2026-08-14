@@ -7,10 +7,12 @@
 
 ## いまどこにいるか
 
-**SPEC §7 の全機能(#0〜F10)が実装・検証・コミット済み。Session 3(検収と公開)の手前。**
+**Session 3(検収と公開)完了。公開済み・残るはドメイン取得のみ。**
 
 ```
 ~/00.PJ/Kaffelogic/roast-overlay     ← 2026-08-14 に kpro-diff から改称
+公開URL: https://ryoroasts.github.io/roast-overlay/  (GitHub Pages)
+リポジトリ: https://github.com/ryoroasts/roast-overlay (public)
 dev サーバー: npm run dev → http://localhost:5173
 サンプル: .tmp-samples/(.kpro 27本 + .klog 35本、gitignore 済。原本は vault)
 ```
@@ -19,9 +21,14 @@ dev サーバー: npm run dev → http://localhost:5173
 |---|---|
 | 実装 | #0・F1〜F10 すべて完了 |
 | 型チェック / build | 通る |
-| git | 14コミット。作業ツリーはクリーン |
+| AC-F10-1 | dist を静的配信し log0007 で実地検証済み(README記載の数値と完全一致) |
+| git | 17コミット。作業ツリーはクリーン。author は `ryo <ryo.roasts@gmail.com>` に統一(誤って `Kaeru` 名義で入った2件は force-push で修正済み) |
 | LICENSE | MIT / `Copyright (c) 2026 ryo (@ryo_roasts)` |
 | `package.json` | `private: false` / `name: roast-overlay` |
+| GitHub | `ryoroasts` アカウントで public repo 作成・push 済み。gh CLI をこのMacに新規インストール・認証(scope: workflow込み) |
+| ホスティング | GitHub Pages。`.github/workflows/deploy.yml` で push 時に自動ビルド・デプロイ |
+| README スクリーンショット | 追加済み。実アプリのSVGチャート(log0007)をそのまま抽出・合成した図 |
+| コミュニティ告知文 | ドラフト2本(community.kaffelogic.com向け・kl-profiles.com向け)作成済み・**未投稿**。ユーザ手元に送付済み(vault未保存) |
 
 ---
 
@@ -71,18 +78,16 @@ Align by / フェーズ表 / サマリ / 偏差表が英語で出ていた。26�
 
 ## 🔴 次にやること
 
-### 1. Session 3(検収と公開)
+### 1. ドメイン `overlay.coffee` の取得(唯一の残タスク)
 
-- ホスティング先の決定(GitHub Pages / Cloudflare Pages。`base: './'` 済みでどこでも動く)
-- 公開ドメイン `overlay.coffee` の取得
-- GitHub にリモートを作成して push(**まだリモート未設定**)
-- コミュニティへの告知文(community.kaffelogic.com / kl-profiles.com)
+金銭を伴う購入操作のため Claude では実行不可。レジストラで購入し、GitHub Pages のカスタムドメイン設定(`Settings > Pages > Custom domain`)と
+CNAME の DNS 設定を行う。取得後、リポジトリ直下に `public/CNAME`(内容: `overlay.coffee`)を追加してコミットすると Pages 側の設定も引き継がれる。
 
-### 2. README のスクリーンショット(未着手)
+### 2. コミュニティへの告知(投稿はユーザ判断)
 
-SPEC §3.2 のデモ素材 = **log0007 のオーバーシュート(+12.06℃ @72s)**。
-`1500-2000m Rest` プロファイルで、**フォーラム最頻トピックと同じ現象が手元で再現している**。
-告知の説得力に直結するので、撮って README に埋めたい。
+ドラフト2本(community.kaffelogic.com 向け・kl-profiles.com 向け)を作成済み。
+community.kaffelogic.com 側は実際のスレッドURL(t=368等)を埋めてから投稿、
+自己宣伝ノルムの確認も推奨。kl-profiles.com は投稿方法(フォーム/連絡先)を要確認。
 
 ### 3. 🟡 保留: フェーズの可視化
 

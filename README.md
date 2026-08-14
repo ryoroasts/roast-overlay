@@ -13,6 +13,8 @@ roasts fairly even when the button was pressed a few seconds early or late.
 static site — parsing, charting, and comparison all happen client-side. There
 is no server component and nothing is ever sent anywhere.
 
+![Overlay showing log0007 (1500-2000m Rest): actual temperature overshoots the design curve by +12.06°C at 1:12, then settles back to -0.09°C by roast end](docs/img/overshoot-log0007.svg)
+
 ## Why
 
 Kaffelogic's own community forum's most common thread is some version of

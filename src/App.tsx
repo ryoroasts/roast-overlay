@@ -3,8 +3,7 @@ import FileDrop from './components/FileDrop';
 import RoastChart from './components/RoastChart';
 import DiffTable from './components/DiffTable';
 import LevelPanel from './components/LevelPanel';
-import type { KproProfile } from './lib/kpro';
-import { makeId, type LoadedProfile } from './lib/profiles';
+import { makeId, type LoadedProfile, type ParsedFile } from './lib/profiles';
 import { colorFor } from './lib/palette';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -20,15 +19,17 @@ export default function App() {
   const [profiles, setProfiles] = useState<LoadedProfile[]>([]);
   const [level, setLevel] = useState(3.0);
 
-  function addProfiles(parsed: KproProfile[]) {
+  function addProfiles(files: ParsedFile[]) {
     setProfiles((prev) => {
       const next = [...prev];
-      for (const p of parsed) {
+      for (const f of files) {
         next.push({
           id: makeId(),
           color: colorFor(next.length),
           visible: true,
-          profile: p,
+          kind: f.kind,
+          profile: f.kind === 'kpro' ? f.kpro : f.klog.design,
+          log: f.kind === 'klog' ? f.klog : undefined,
         });
       }
       return next;
@@ -78,6 +79,14 @@ export default function App() {
                         style={{ background: p.color }}
                       />
                       {p.profile.name}
+                      {p.log?.aborted && (
+                        <span
+                          className="text-amber-400"
+                          title={`中断ログ: reason=${p.log.endReason} / roast_end=${p.log.roastEnd.toFixed(1)}s で終了`}
+                        >
+                          ⚠
+                        </span>
+                      )}
                     </button>
                     <button
                       onClick={() => remove(p.id)}

@@ -1,8 +1,10 @@
 import { useRef, useState } from 'react';
-import { parseKpro, type KproProfile } from '../lib/kpro';
+import { parseKpro } from '../lib/kpro';
+import { parseKlog } from '../lib/klog';
+import type { ParsedFile } from '../lib/profiles';
 
 interface Props {
-  onLoad: (profiles: KproProfile[]) => void;
+  onLoad: (files: ParsedFile[]) => void;
 }
 
 export default function FileDrop({ onLoad }: Props) {
@@ -11,11 +13,16 @@ export default function FileDrop({ onLoad }: Props) {
 
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
-    const parsed: KproProfile[] = [];
+    const parsed: ParsedFile[] = [];
     for (const file of Array.from(files)) {
-      if (!file.name.toLowerCase().endsWith('.kpro')) continue;
-      const text = await file.text();
-      parsed.push(parseKpro(text, file.name));
+      const lower = file.name.toLowerCase();
+      if (lower.endsWith('.kpro')) {
+        const text = await file.text();
+        parsed.push({ kind: 'kpro', kpro: parseKpro(text, file.name) });
+      } else if (lower.endsWith('.klog')) {
+        const text = await file.text();
+        parsed.push({ kind: 'klog', klog: parseKlog(text, file.name) });
+      }
     }
     if (parsed.length) onLoad(parsed);
   }
@@ -40,13 +47,13 @@ export default function FileDrop({ onLoad }: Props) {
       <input
         ref={inputRef}
         type="file"
-        accept=".kpro"
+        accept=".kpro,.klog"
         multiple
         className="hidden"
         onChange={(e) => void handleFiles(e.target.files)}
       />
       <p className="text-zinc-300">
-        .kpro をここにドラッグ&ドロップ、またはクリックして選択(複数可)
+        .kpro / .klog をここにドラッグ&ドロップ、またはクリックして選択(複数可)
       </p>
     </div>
   );

@@ -169,7 +169,7 @@ export function activeZones(raw: Record<string, string>): ActiveZone[] {
   return out;
 }
 
-function parseRoastLevels(csv: string | undefined): number[] {
+export function parseRoastLevels(csv: string | undefined): number[] {
   if (!csv) return [];
   return csv
     .split(',')
@@ -177,12 +177,10 @@ function parseRoastLevels(csv: string | undefined): number[] {
     .filter((n) => Number.isFinite(n));
 }
 
-/** .kpro テキスト全体をパース */
-export function parseKpro(text: string, fileName: string): KproProfile {
-  const raw = parseLines(text);
-  const shortName = raw['profile_short_name']?.trim();
+/** key:value の Record(.kpro 本体 or .klog ヘッダ)から KproProfile を組み立てる */
+export function kproFromRaw(raw: Record<string, string>, name: string, fileName: string): KproProfile {
   return {
-    name: shortName || fileName.replace(/\.kpro$/i, ''),
+    name,
     fileName,
     designer: raw['profile_designer']?.trim() ?? '',
     description: (raw['profile_description'] ?? '').replace(/\\v/g, '\n'),
@@ -191,4 +189,11 @@ export function parseKpro(text: string, fileName: string): KproProfile {
     roastLevels: parseRoastLevels(raw['roast_levels']),
     raw,
   };
+}
+
+/** .kpro テキスト全体をパース */
+export function parseKpro(text: string, fileName: string): KproProfile {
+  const raw = parseLines(text);
+  const shortName = raw['profile_short_name']?.trim();
+  return kproFromRaw(raw, shortName || fileName.replace(/\.kpro$/i, ''), fileName);
 }

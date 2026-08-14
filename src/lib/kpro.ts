@@ -109,6 +109,20 @@ export function buildCurve(csv: string | undefined): CurveData {
       end: groups[i + 1][0], // アンカー i+1
     });
   }
+
+  // 最終グループの制御点2つは、最終アンカーより後ろへ伸びる最終セグメントの
+  // [制御点, 終端アンカー] を表す(§2.4(b))。cp1=cp2=制御点として1本追加する。
+  if (groups.length > 0) {
+    const lastAnchor = anchors[anchors.length - 1];
+    const [cp, finalAnchor] = [groups[groups.length - 1][1], groups[groups.length - 1][2]].sort(
+      (a, b) => a.t - b.t,
+    );
+    if (finalAnchor.t > lastAnchor.t) {
+      segments.push({ start: lastAnchor, cp1: cp, cp2: cp, end: finalAnchor });
+      anchors.push(finalAnchor);
+    }
+  }
+
   return { anchors, segments };
 }
 

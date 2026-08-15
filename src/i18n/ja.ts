@@ -92,7 +92,7 @@ export const ja: Dict = {
   summaryTargetEndTemp: '終了温度(目標)',
   summaryActualEndTemp: '終了温度(実測)',
   summaryDelta: 'Δ(actual − target)',
-  summaryWeightIn: 'in (g)',
+  summaryWeightIn: '生豆(g)',
   summaryWeightOut: '焼上(g)',
   summaryWeightLoss: (v: string) => `Weight loss ${v}%`,
 

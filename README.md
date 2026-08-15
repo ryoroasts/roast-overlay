@@ -2,71 +2,80 @@
 
 **See your roast against its design.**
 
-Overlay is a browser tool for Kaffelogic roasters. Drop in a `.klog` (a
-recorded roast) and it overlays the actual temperature curve on top of the
-design curve the machine was following — same graph, same color, solid vs.
-dashed. Drop in several roasts and it aligns them by a chosen bean
-temperature instead of the first-crack button press, so you can compare
-roasts fairly even when the button was pressed a few seconds early or late.
+Overlay is a browser tool for Kaffelogic roasters. Load two `.kpro` profiles
+and it draws them on one chart, with each profile's zones as bands and a
+table showing exactly which settings differ. Load a `.klog` and it draws the
+roast you actually got against the design curve the machine was following.
 
 **Your files never leave your browser. No account, no upload.** Overlay is a
 static site — parsing, charting, and comparison all happen client-side. There
 is no server component and nothing is ever sent anywhere.
 
-![Overlay showing log0007 (1500-2000m Rest): actual temperature overshoots the design curve by +12.06°C at 1:12, then settles back to -0.09°C by roast end](docs/img/overshoot-log0007.svg)
+There are three **Example** buttons on the drop zone if you want to look
+around before digging out your own files.
 
 ## Why
 
-Kaffelogic's own community forum's most common thread is some version of
-"my roast overshoots the design curve in the first minute or two — is that
-normal, what do I do about it?" Loading a real example roast (`1500-2000m
-Rest`) into Overlay shows exactly that pattern:
+I roast on a Nano 7 most weekends and change one thing at a time — move a
+zone, flip a boost, stretch a phase — then compare the next profile against
+the last one.
 
-- Actual temperature peaks **+12.06°C above the design curve at 1:12** into
-  the roast.
-- It settles back within a ±3°C band by **2:51**.
-- By roast end the deviation is back down to **-0.09°C**.
+In Kaffelogic Studio I could not find a way to see the zones of the profile I
+was comparing against, and the zone is usually the exact thing I had just
+changed. So I built this for myself.
 
-Overlay's deviation panel computes those three numbers (max overshoot, when
-it converges, where it lands) for every roast you load, so "is this
-overshoot normal" becomes something you can read off a chart instead of
-guessing.
+Overlay draws `zone1` / `zone2` / `corner1` as bands for every loaded
+profile, and puts preheat, PID, zone times, boosts and recommended level into
+one table with the differences marked.
 
-The second, more specific problem: **first crack is a button a human
-presses**, and how fast the beans pop changes exactly when that button gets
-pressed. Two roasts of the same profile, pressed a few seconds apart, get
-their Maillard/Development split computed differently even though the beans
-did almost the same thing. Overlay's *Align by temperature* mode aligns
-roasts by the moment each one crosses a chosen bean temperature instead of
-the button press, and shows both the button-based and temperature-based
-Development/DTR numbers side by side so you can see how much the button
-timing actually mattered.
+The bundled profile example is two of my own profiles that are identical
+except for Zone 2:
+
+| | Zone 2 window | Zone 2 boost |
+|---|---|---|
+| `Rwanda_Nordic2` | 300–315 s | **+3** |
+| `Rwanda_Nordic3` | 300–340 s | **−2** |
+
+Everything else — preheat, PID, Zone 1, Corner 1, recommended level — reads
+as identical in the table, so the one change stands out on its own.
 
 ## What it does
 
-- **Design vs. actual overlay** — load a `.klog` and see the measured curve
-  (solid) and the design curve the machine was following (dashed), same
-  color, one graph. `.kpro` files (design only, no roast data) render as a
-  single reconstructed curve.
-- **Multiple roasts, one graph** — load several `.klog`/`.kpro` files and
-  compare them directly, each in its own color.
-- **Align by temperature** — the differentiator. Shift each roast's time
-  axis so a chosen reference temperature (default: `mean_temp`) lands at
-  x = 0, instead of roast start or the first-crack button press. The design
-  curve shifts with it, so the actual-vs-design relationship stays intact.
-- **Deviation tracking** — a small panel under the main chart plots
-  `actual − design` over time, with a ±3°C band and a summary (max
-  overshoot/undershoot and when, when it converges, deviation at roast end).
+- **Compare profiles** — load several `.kpro` files and see them on one
+  chart, each in its own color, with zones drawn as bands and a scalar diff
+  table (preheat, PID, zone start/end, boost, Kp/Kd multipliers, recommended
+  level) highlighting what differs from the first-loaded file.
+- **Design vs. actual** — load a `.klog` and see the measured curve (solid)
+  against the design curve the machine was following (dashed), same color,
+  one graph.
+- **Align by temperature** — shift each roast's time axis so a chosen
+  reference temperature (default column: `mean_temp`) lands at x = 0, instead
+  of roast start or the first-crack button press. The design curve shifts
+  with it, so the actual-vs-design relationship stays intact. Because first
+  crack is a button press rather than a measurement, Maillard / Development /
+  DTR are then listed on both bases: in the bundled roast example one of the
+  two roasts was pressed about 13.6 s later relative to the same temperature,
+  which moves its Development from 1:12.8 to 1:26.4 and its DTR from 13.45 %
+  to 15.96 %. The other roast in the pair does not move.
+- **Deviation tracking** — a panel under the main chart plots
+  `actual − design` over time, with a ±3°C band and a summary: largest
+  excursion above and below and when, when it converges, and where it lands
+  at roast end.
 - **Phases** — Dry end / Maillard / Development / DTR, computed both the
   button way and the temperature way when temperature alignment is active.
-- **Level, per roast** — each loaded file gets its own Level slider
-  (0–6, roast_levels-interpolated end temperature), so profiles roasted at
+- **Level, per file** — each loaded file gets its own Level slider (0–6,
+  `roast_levels`-interpolated end temperature), so profiles roasted at
   different levels don't get flattened into one shared value. A "Sync all"
-  toggle restores the old shared-Level behavior when you want it.
+  toggle locks them together when you want that instead.
 - **RoR** — actual rate-of-rise, read straight from the log's own
   `actual_ROR` column (not re-derived), with an optional design-RoR overlay.
-- **Scalar diff table** — preheat/PID/zone settings side by side, with
-  differences from the first-loaded file highlighted.
+- **Fan curves** — `fan_profile` on a second axis, dashed.
+
+![Overlay showing log0007 (1500-2000m Rest): the measured curve runs +12.06°C above the design curve at 1:12, comes back inside ±3°C by 2:51, and ends at -0.09°C](docs/img/overshoot-log0007.svg)
+
+*The deviation panel on the third bundled example. Running above the design
+curve early is normal on many Kaffelogic profiles — the point here is simply
+that you can read how far and for how long, instead of estimating it.*
 
 ## Usage
 
@@ -91,11 +100,11 @@ safe. If a future version of Overlay ever added a "share this roast" link or
 export, that machine-identifying data would need to be stripped first; as of
 this version, no such feature exists.
 
-The example roasts bundled with the app (the "Example:" buttons on the
-drop zone) are real roasts, but those same fields — `model`, `mains_voltage`,
+The examples bundled with the app are real roasts and real profiles of mine.
+In the published `.klog` copies those same fields — `model`, `mains_voltage`,
 `calibration_data`, `motor_hours`, `heater_hours` — have been replaced with
-`REDACTED` in the published copies. Everything that feeds the charts is
-untouched.
+`REDACTED`. Everything that feeds the charts is untouched. `.kpro` files
+carry no machine-identifying data at all.
 
 ## A note on accuracy: `.kpro` vs. `.klog`
 
@@ -109,8 +118,9 @@ profile's stored control points using cubic Béziers. That reconstruction
 matches the machine's own curve closely from about the 60-second mark
 onward (average error ≤0.5°C), but is measurably less accurate in the first
 minute (average error ~2.3°C, because the machine's own ramp-up logic before
-the first anchor point isn't recoverable from the stored data). If you need
-first-minute accuracy, load the `.klog` instead of the bare `.kpro`.
+the first anchor point isn't recoverable from the stored data). Comparing
+zones and settings between profiles is unaffected by this; if you need
+first-minute curve accuracy, load the `.klog` instead of the bare `.kpro`.
 
 ## 日本語をお使いの方へ
 

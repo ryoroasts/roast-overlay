@@ -21,6 +21,8 @@ import { useI18n } from './i18n/context';
 import type { Lang } from './i18n/context';
 
 const REPO_URL = 'https://github.com/ryoroasts/roast-overlay';
+/** 温度基準の考え方の出どころ。日本語UIのときだけ出す(t.aboutNoteLink が ja にしか無い) */
+const NOTE_URL = 'https://note.com/ryo_roasts/m/ma7684f108530';
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -133,7 +135,23 @@ export default function App() {
           <Section title={t.aboutTitle}>
             <div className="space-y-3 text-sm leading-relaxed text-zinc-400">
               <p>{t.aboutWhat}</p>
-              <p>{t.aboutAlign}</p>
+              <p>
+                {t.aboutAlign}
+                {t.aboutNoteLink && (
+                  <>
+                    {' '}
+                    {t.aboutNoteLead}{' '}
+                    <a
+                      href={NOTE_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-zinc-300 underline underline-offset-2 hover:text-zinc-100"
+                    >
+                      {t.aboutNoteLink} ↗
+                    </a>
+                  </>
+                )}
+              </p>
               <p>{t.aboutPrivacy}</p>
             </div>
           </Section>

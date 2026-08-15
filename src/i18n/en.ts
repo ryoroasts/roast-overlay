@@ -11,6 +11,9 @@ export interface Dict {
   aboutWhat: string;
   aboutAlign: string;
   aboutPrivacy: string;
+  /** 日本語UIのみ。英語話者に日本語ブログを見せても意味がないので en では未定義にする */
+  aboutNoteLead?: string;
+  aboutNoteLink?: string;
 
   dropzone: string;
   exampleProfiles: string;

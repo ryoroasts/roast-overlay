@@ -13,8 +13,9 @@ export interface Dict {
   aboutPrivacy: string;
 
   dropzone: string;
-  exampleOvershoot: string;
+  exampleProfiles: string;
   exampleAlign: string;
+  exampleOvershoot: string;
   exampleHint: string;
   exampleError: string;
 
@@ -124,10 +125,10 @@ export const en: Dict = {
     'No account, no upload. This is a static page: parsing, charting, and comparison all happen in this browser tab, and your files are never sent anywhere. Free and open source (MIT) — the source link above is there so you can check that claim yourself.',
 
   dropzone: 'Drop .kpro / .klog files here, or click to select (multiple allowed)',
-  exampleOvershoot: 'Example: an overshoot',
-  exampleAlign: 'Example: compare two roasts',
-  exampleHint:
-    'No Kaffelogic files handy? The first is a roast running +12°C above its design curve in the first minute. The second is two roasts where switching from the first-crack button to a bean temperature moves the numbers.',
+  exampleProfiles: 'Example: two profiles (.kpro)',
+  exampleAlign: 'Example: two roasts (.klog)',
+  exampleOvershoot: 'Example: an overshoot (.klog)',
+  exampleHint: 'No Kaffelogic files handy? Load one of these and look around.',
   exampleError: 'Could not load the example. Please try reloading the page.',
 
   loadedSection: 'Loaded profiles',

@@ -5,12 +5,17 @@ import type { ParsedFile } from '../lib/profiles';
 import { useI18n } from '../i18n/context';
 
 /**
- * public/ に置いた匿名化済みサンプル(機体シリアル等は伏せてある。SPEC §2.7)。
+ * public/ に置いたサンプル。
+ * profiles = Zone だけを動かした自作 .kpro 2本(Rwanda_Nordic v2 / v3)。
+ *   帯の位置と boost の符号(+3 / -2)が違うので、Studio で見られない
+ *   「比較先の Zone」がそのまま出る。**このツールを作った動機そのもの**。
+ * align = 1ハゼの手押しで数字がどれだけ動くかを見せる .klog 2本(片方だけ動く)。
  * overshoot = README のスクリーンショットと同じ焙煎(+12.06℃ @ 1:12)。
- * align = 1ハゼの手押しで数字がどれだけ動くかを見せる2本(片方だけ動く)。
+ * .klog は機体シリアル等を伏せてある(SPEC §2.7)。.kpro には機体情報が無い。
  */
-const EXAMPLE_OVERSHOOT = ['example-overshoot.klog'];
+const EXAMPLE_PROFILES = ['example-profile-a.kpro', 'example-profile-b.kpro'];
 const EXAMPLE_ALIGN = ['example-align-a.klog', 'example-align-b.klog'];
+const EXAMPLE_OVERSHOOT = ['example-overshoot.klog'];
 
 interface Props {
   onLoad: (files: ParsedFile[]) => void;
@@ -32,7 +37,14 @@ export default function FileDrop({ onLoad, showExample = false }: Props) {
       for (const name of files) {
         const res = await fetch(`./${name}`);
         if (!res.ok) throw new Error(String(res.status));
-        parsed.push({ kind: 'klog', klog: parseKlog(await res.text(), name) });
+        const text = await res.text();
+        // ドロップ時と同じ分岐にする。ここを klog 固定にすると .kpro が
+        // 焙煎ログとして解釈され、roast_end=0 から「中断ログ」と誤判定される
+        parsed.push(
+          name.toLowerCase().endsWith('.kpro')
+            ? { kind: 'kpro', kpro: parseKpro(text, name) }
+            : { kind: 'klog', klog: parseKlog(text, name) },
+        );
       }
       onLoad(parsed);
     } catch {
@@ -89,16 +101,22 @@ export default function FileDrop({ onLoad, showExample = false }: Props) {
       <div className="mt-2 text-center text-sm">
         <div className="flex flex-wrap justify-center gap-2">
           <button
-            onClick={() => void loadExample(EXAMPLE_OVERSHOOT)}
+            onClick={() => void loadExample(EXAMPLE_PROFILES)}
             className="rounded-lg border border-zinc-700 px-3 py-1.5 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100"
           >
-            {t.exampleOvershoot}
+            {t.exampleProfiles}
           </button>
           <button
             onClick={() => void loadExample(EXAMPLE_ALIGN)}
             className="rounded-lg border border-zinc-700 px-3 py-1.5 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100"
           >
             {t.exampleAlign}
+          </button>
+          <button
+            onClick={() => void loadExample(EXAMPLE_OVERSHOOT)}
+            className="rounded-lg border border-zinc-700 px-3 py-1.5 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100"
+          >
+            {t.exampleOvershoot}
           </button>
         </div>
         <p className="mt-1.5 text-xs text-zinc-500">

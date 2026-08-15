@@ -91,6 +91,12 @@ safe. If a future version of Overlay ever added a "share this roast" link or
 export, that machine-identifying data would need to be stripped first; as of
 this version, no such feature exists.
 
+The example roasts bundled with the app (the "Example:" buttons on the
+drop zone) are real roasts, but those same fields — `model`, `mains_voltage`,
+`calibration_data`, `motor_hours`, `heater_hours` — have been replaced with
+`REDACTED` in the published copies. Everything that feeds the charts is
+untouched.
+
 ## A note on accuracy: `.kpro` vs. `.klog`
 
 When you load a `.klog`, the design line comes straight from the log's own

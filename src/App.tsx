@@ -20,6 +20,8 @@ import { colorFor } from './lib/palette';
 import { useI18n } from './i18n/context';
 import type { Lang } from './i18n/context';
 
+const REPO_URL = 'https://github.com/ryoroasts/roast-overlay';
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
@@ -112,10 +114,30 @@ export default function App() {
                 {l === 'en' ? t.langToggleEn : t.langToggleJa}
               </button>
             ))}
+            <a
+              href={REPO_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="ml-1 rounded px-2 py-1 text-zinc-500 hover:text-zinc-300"
+            >
+              {t.sourceLabel} ↗
+            </a>
           </div>
         </header>
 
-        <FileDrop onLoad={addProfiles} />
+        <FileDrop onLoad={addProfiles} showExample={profiles.length === 0} />
+
+        {/* 初回訪問者向けの説明。README を読む人はほとんどいないため、
+            アプリ内に置く(2026-08-14)。ファイルを読み込んだら邪魔なので消す。 */}
+        {profiles.length === 0 && (
+          <Section title={t.aboutTitle}>
+            <div className="space-y-3 text-sm leading-relaxed text-zinc-400">
+              <p>{t.aboutWhat}</p>
+              <p>{t.aboutAlign}</p>
+              <p>{t.aboutPrivacy}</p>
+            </div>
+          </Section>
+        )}
 
         {profiles.length > 0 && (
           <>

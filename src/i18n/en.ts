@@ -121,7 +121,7 @@ export const en: Dict = {
 
   aboutTitle: 'What is this?',
   aboutWhat:
-    'Overlay is a browser tool for Kaffelogic roasters. Load a .klog and it plots the temperature your roast actually reached against the design curve the machine was following — same graph, solid vs. dashed — plus a panel showing your biggest overshoot, when it converges, and where you land by roast end. "Is this overshoot normal?" becomes a number you can read instead of a guess.',
+    'Overlay is a browser tool for Kaffelogic roasters. Load two .kpro profiles and it draws them on one chart, with each profile\'s zones (zone1 / zone2 / corner1) as bands and a table showing exactly which settings differ — preheat, PID, zone times and boosts, recommended level. I change one thing at a time between roasts, and I wanted to see that one thing. Load a .klog instead and it draws the roast you actually got against the design curve the machine was following, with how far above or below it ran and when it came back.',
   aboutAlign:
     'Load several roasts and you can line them up by a chosen bean temperature instead of the first-crack button press. The button is pressed by a human, a few seconds early or late every time, which shifts the Maillard and Development numbers even when the beans did nearly the same thing. Aligning by temperature removes that.',
   aboutPrivacy:

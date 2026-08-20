@@ -10,12 +10,10 @@ import { useI18n } from '../i18n/context';
  *   帯の位置と boost の符号(+3 / -2)が違うので、Studio で見られない
  *   「比較先の Zone」がそのまま出る。**このツールを作った動機そのもの**。
  * align = 1ハゼの手押しで数字がどれだけ動くかを見せる .klog 2本(片方だけ動く)。
- * overshoot = README のスクリーンショットと同じ焙煎(+12.06℃ @ 1:12)。
  * .klog は機体シリアル等を伏せてある(SPEC §2.7)。.kpro には機体情報が無い。
  */
 const EXAMPLE_PROFILES = ['example-profile-a.kpro', 'example-profile-b.kpro'];
 const EXAMPLE_ALIGN = ['example-align-a.klog', 'example-align-b.klog'];
-const EXAMPLE_OVERSHOOT = ['example-overshoot.klog'];
 
 interface Props {
   onLoad: (files: ParsedFile[]) => void;
@@ -111,12 +109,6 @@ export default function FileDrop({ onLoad, showExample = false }: Props) {
             className="rounded-lg border border-zinc-700 px-3 py-1.5 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100"
           >
             {t.exampleAlign}
-          </button>
-          <button
-            onClick={() => void loadExample(EXAMPLE_OVERSHOOT)}
-            className="rounded-lg border border-zinc-700 px-3 py-1.5 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100"
-          >
-            {t.exampleOvershoot}
           </button>
         </div>
         <p className="mt-1.5 text-xs text-zinc-500">

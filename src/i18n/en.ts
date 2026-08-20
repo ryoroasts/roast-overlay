@@ -18,7 +18,6 @@ export interface Dict {
   dropzone: string;
   exampleProfiles: string;
   exampleAlign: string;
-  exampleOvershoot: string;
   exampleHint: string;
   exampleError: string;
 
@@ -130,7 +129,6 @@ export const en: Dict = {
   dropzone: 'Drop .kpro / .klog files here, or click to select (multiple allowed)',
   exampleProfiles: 'Example: two profiles (.kpro)',
   exampleAlign: 'Example: two roasts (.klog)',
-  exampleOvershoot: 'Example: an overshoot (.klog)',
   exampleHint: 'No Kaffelogic files handy? Load one of these and look around.',
   exampleError: 'Could not load the example. Please try reloading the page.',
 

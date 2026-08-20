@@ -23,7 +23,6 @@ export const ja: Dict = {
   dropzone: '.kpro / .klog をここにドラッグ&ドロップ、またはクリックして選択(複数可)',
   exampleProfiles: '例: プロファイル2本 (.kpro)',
   exampleAlign: '例: 焙煎ログ2本 (.klog)',
-  exampleOvershoot: '例: 上振れした焙煎 (.klog)',
   exampleHint: '手元に Kaffelogic のファイルがなくても試せます。どれか読み込んでみてください。',
   exampleError: '例を読み込めませんでした。ページを再読み込みしてお試しください。',
 

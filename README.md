@@ -11,7 +11,7 @@ roast you actually got against the design curve the machine was following.
 static site — parsing, charting, and comparison all happen client-side. There
 is no server component and nothing is ever sent anywhere.
 
-There are three **Example** buttons on the drop zone if you want to look
+There are two **Example** buttons on the drop zone if you want to look
 around before digging out your own files.
 
 ## Why
@@ -73,9 +73,9 @@ as identical in the table, so the one change stands out on its own.
 
 ![Overlay showing log0007 (1500-2000m Rest): the measured curve runs +12.06°C above the design curve at 1:12, comes back inside ±3°C by 2:51, and ends at -0.09°C](docs/img/overshoot-log0007.svg)
 
-*The deviation panel on the third bundled example. Running above the design
-curve early is normal on many Kaffelogic profiles — the point here is simply
-that you can read how far and for how long, instead of estimating it.*
+*The deviation panel, from one of my own roasts. This one sits above its
+design curve early on and tracks it closely from about 2:51 — whether that
+matters is your call; Overlay only gives you the numbers to look at.*
 
 ## Usage
 
